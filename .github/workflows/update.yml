@@ -116,12 +116,29 @@ jobs:
           with open(raw_file, "r", encoding="utf-8-sig", errors="ignore") as f:
               for line in f:
                   raw_line_count += 1
+                  # Usuń komentarze i zamień na małe litery
                   line = line.split('#')[0].split('!')[0].strip().lower()
-                  line = re.sub(r'^(0\.0\.0\.0|127\.0\.0\.1|::1)\s+', '', line)
-                  line = re.sub(r'\$.*$', '', line)
-                  line = re.sub(r'^\|\|?', '', line)
-                  line = re.sub(r'\^.*$', '', line)
-                  line = re.sub(r'^\*\.', '', line)
+                  if not line:
+                      continue
+
+                  # --- Priorytet 1: Obsługa formatu dnsmasq ---
+                  if line.startswith("address=/"):
+                      line = line.split('/')[1]
+                  
+                  # --- Optymalizacja: szybsze czyszczenie stringów ---
+                  else:
+                      # Format hosts (np. "0.0.0.0 example.com" -> "example.com")
+                      if line.startswith("0.0.0.0"): line = line[7:]
+                      elif line.startswith("127.0.0.1"): line = line[9:]
+                      elif line.startswith("::1"): line = line[3:]
+                      
+                      # Format Adblock (opcje $, prefiksy ||, sufiksy ^)
+                      if '$' in line: line = line.split('$')[0]
+                      if line.startswith('||'): line = line[2:]
+                      elif line.startswith('|'): line = line[1:]
+                      if '^' in line: line = line.split('^')[0]
+                      if line.startswith('*.'): line = line[2:]
+
                   line = line.strip()
 
                   if not line or line in ignored:
