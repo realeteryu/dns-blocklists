@@ -1,8 +1,8 @@
-https://small.oisd.nl
-https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/adblock.txt
+https://small.oisd.nl/domainswild2
+https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.txt
 https://v.firebog.net/hosts/AdguardDNS.txt
 https://v.firebog.net/hosts/Easyprivacy.txt
-https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/adblock/popupads.txt
-https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/adblock/pro.mini.txt
-https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/adblock/tif.mini.txt
-https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADhosts.txt
+https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/popupads.txt
+https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/pro.mini.txt
+https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/tif.mini.txt
+https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
