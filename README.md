@@ -8,29 +8,29 @@ Pipeline na **GitHub Actions** cyklicznie pobiera źródła, czyści reguły z n
 
 ## Jak to działa?
 
-* **Agregacja:** Pobiera listy ze `sources.txt` z walidacją pobierania.
-* **Sanityzacja i normalizacja:** Wyodrębnia czyste domeny z popularnych formatów, odrzuca komentarze, puste linie, adresy IP oraz niepoprawne domeny.
-* **Wyjątki:** Przepuszcza domeny zdefiniowane w `allowlist.txt` (ignoruje je podczas blokowania).
-* **Deduplikacja (Python):** Automatycznie usuwa subdomeny, jeśli blokowana jest cała domena nadrzędna (np. usuwa `sub.bad.com`, gdy istnieje `bad.com`).
+* **Agregacja:** Pobiera listy z pliku `sources.txt` z weryfikacją poprawności pobierania (odrzuca błędy HTTP i strony HTML).
+* **Normalizacja i czyszczenie:** Wyodrębnia czyste domeny z popularnych formatów. Odrzuca komentarze, puste linie, adresy IP oraz niepoprawne ciągi znaków.
+* **Aglomeracja i deduplikacja (Python):** Automatycznie usuwa subdomeny, jeśli blokowana jest cała domena nadrzędna (np. usuwa `sub.bad.com`, gdy na liście znajduje się już `bad.com`). Znacząco zmniejsza to rozmiar pliku i przyspiesza wyszukiwanie.
+* **Wyjątki:** Przepuszcza domeny zdefiniowane w `allowlist.txt` (całkowicie ignoruje je podczas blokowania).
 * **Deploy:** Generuje zoptymalizowany plik, automatycznie commituje zmiany do repozytorium oraz **wysyła plik bezpośrednio do Cloudflare KV** (zapewniając błyskawiczny dostęp dla `doh-worker`).
 
 ---
 
 ## Obsługiwane formaty wejściowe
 
-Skrypt potrafi sparsować i znormalizować listy w następujących formatach:
+Skrypt został napisany tak, aby bezproblemowo przetwarzać najpopularniejsze formaty list dostępne w sieci. Parser potrafi wyodrębnić domenę z następujących zapisów:
 
-* **Czyste domeny:** `domena.com`
-* **Wildcard:** `*.domena.com`
-* **Format hosts:** `0.0.0.0 domena.com`, `127.0.0.1 domena.com`
-* **Format dnsmasq:** `address=/domena.com/0.0.0.0`, `server=/domena.com/`
-* **Format Adblock/uBlock:** `||domena.com^` (modyfikatory po znaku `$` są ignorowane)
+* **`domains` (czyste domeny):** `domena.com`
+* **`domainswild` / `wildcards`:** `*.domena.com`
+* **`hosts`:** `0.0.0.0 domena.com`, `127.0.0.1 domena.com`, `::1 domena.com`
+* **`dnsmasq`:** `address=/domena.com/0.0.0.0`, `server=/domena.com/`
+* **`adblock` / `abp`:** `||domena.com^` (modyfikatory i opcje po znaku `$` są ignorowane)
 
 ---
 
 ## Plik wyjściowy
 
-Gotowa lista do wdrożenia na poziomie resolvera (np. Cloudflare Worker `doh-worker`, Pi-hole, AdGuard Home):
+Gotowa lista w formacie czystych domen (jedna domena na linię), gotowa do wdrożenia na poziomie resolvera (np. Cloudflare Worker `doh-worker`, Pi-hole, AdGuard Home):
 
 * **Plik w repo:** `output/doh_combined.txt`
 * **Raw URL:** `https://raw.githubusercontent.com/realeteryu/dns-blocklists/refs/heads/main/output/doh_combined.txt`
