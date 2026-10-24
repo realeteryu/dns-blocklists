@@ -1,8 +1,28 @@
+# --- Globalne listy reklam i trackerów ---
+
+# OISD Small (format: domains)
 https://small.oisd.nl/domainswild2
+
+# 1Hosts Lite (format: domains)
 https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.txt
+
+# Firebog (format: domains)
 https://v.firebog.net/hosts/AdguardDNS.txt
 https://v.firebog.net/hosts/Easyprivacy.txt
+
+# HaGeZi (format: dnsmasq)
 https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/popupads.txt
 https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/pro.mini.txt
 https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/tif.mini.txt
+
+# KADhosts (format: domains)
 https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
+
+
+# --- Ochrona przed phishingiem ---
+
+# Cert Polska / NASK (format: domains) – polski phishing
+https://hole.cert.pl/domains/v2/domains.txt
+
+# Phishing Army (format: domains) – globalny phishing
+https://phishing.army/download/phishing_army_blocklist.txt
