@@ -129,10 +129,11 @@ jobs:
                   
                   # --- Optymalizacja: szybsze czyszczenie stringów ---
                   else:
-                      # Format hosts (np. "0.0.0.0 example.com" -> "example.com")
-                      if line.startswith("0.0.0.0"): line = line[7:]
-                      elif line.startswith("127.0.0.1"): line = line[9:]
-                      elif line.startswith("::1"): line = line[3:]
+                      # Format hosts (używamy split, aby uniknąć problemów z wieloma spacjami)
+                      if line.startswith("0.0.0.0") or line.startswith("127.0.0.1") or line.startswith("::1"):
+                          parts = line.split()
+                          if len(parts) > 1:
+                              line = parts[1]
                       
                       # Format Adblock (opcje $, prefiksy ||, sufiksy ^)
                       if '$' in line: line = line.split('$')[0]
