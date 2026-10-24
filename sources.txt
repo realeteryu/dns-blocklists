@@ -16,7 +16,7 @@ https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/
 https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/tif.mini.txt
 
 # MajkiIT - Polish Filters for Pi-hole (format: hosts)
-https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/master/polish-pihole-filters/hostfile.txt
+https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/refs/heads/master/polish-pihole-filters/hostfile.txt
 
 
 # --- Ochrona przed phishingiem i zagrożeniami ---
