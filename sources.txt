@@ -15,14 +15,17 @@ https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/
 https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/pro.mini.txt
 https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/dnsmasq/tif.mini.txt
 
-# KADhosts (format: domains)
-https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
+# MajkiIT - Polish Filters for Pi-hole (format: hosts)
+https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/master/polish-pihole-filters/hostfile.txt
 
 
-# --- Ochrona przed phishingiem ---
+# --- Ochrona przed phishingiem i zagrożeniami ---
 
 # Cert Polska / NASK (format: domains) – polski phishing
 https://hole.cert.pl/domains/v2/domains.txt
 
 # Phishing Army (format: domains) – globalny phishing
 https://phishing.army/download/phishing_army_blocklist.txt
+
+# KADhosts (format: domains) – polskie zagrożenia (scam, adware)
+https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
