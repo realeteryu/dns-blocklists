@@ -121,9 +121,11 @@ jobs:
                   if not line:
                       continue
 
-                  # --- Priorytet 1: Obsługa formatu dnsmasq ---
-                  if line.startswith("address=/"):
-                      line = line.split('/')[1]
+                  # --- Obsługa formatów dnsmasq (address=/domena/ i server=/domena/) ---
+                  if line.startswith("address=/") or line.startswith("server=/"):
+                      parts = line.split('/')
+                      if len(parts) > 1:
+                          line = parts[1]
                   
                   # --- Optymalizacja: szybsze czyszczenie stringów ---
                   else:
