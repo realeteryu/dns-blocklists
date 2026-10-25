@@ -1,2 +1,6 @@
-# Umami Analytics & Cloud
+# Analityka
 umami.is
+
+# Infrastruktura (zapobiega błędom w panelach i API)
+github.com
+cloudflare.com
