@@ -4,7 +4,7 @@
 https://small.oisd.nl/domainswild2
 
 # 1Hosts Lite (format: domains)
-https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.txt
+https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.wildcards
 
 # Firebog (format: domains)
 https://v.firebog.net/hosts/AdguardDNS.txt
