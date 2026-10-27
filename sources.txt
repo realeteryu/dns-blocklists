@@ -24,8 +24,5 @@ https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/refs/heads/master/po
 # Cert Polska / NASK (format: domains) – polski phishing
 https://hole.cert.pl/domains/v2/domains.txt
 
-# Phishing Army (format: domains) – globalny phishing
-https://phishing.army/download/phishing_army_blocklist.txt
-
 # KADhosts (format: domains) – polskie zagrożenia (scam, adware)
 https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
