@@ -28,9 +28,7 @@ jobs:
         run: bash scripts/download_sources.sh
 
       - name: Uruchomienie skryptu budującego listę
-        run: |
-          echo "Czyszczenie, formatowanie i aglomeracja subdomen przez Python..."
-          python3 scripts/build_blocklist.py
+        run: python3 scripts/build_blocklist.py
 
       - name: Walidacja pliku wynikowego
         run: |
@@ -38,8 +36,6 @@ jobs:
             echo "BŁĄD: Wygenerowany plik wynikowy jest pusty!"
             exit 1
           fi
-
-          rm -f combined_raw.txt
 
           DOMAIN_COUNT=$(wc -l < output/doh_combined.txt)
           echo "Gotowe! Końcowa liczba domen: $DOMAIN_COUNT"
