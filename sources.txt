@@ -9,6 +9,12 @@ https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.
 # Firebog (format: domains/hosts)
 https://v.firebog.net/hosts/Easyprivacy.txt
 
+# HaGeZi Multi (format: domains)
+https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/wildcard/multi-onlydomains.txt
+
+# MajkiIT Polish Filters (format: hosts) – polskie reklamy
+https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/refs/heads/master/polish-pihole-filters/hostfile.txt
+
 
 # --- Ochrona przed phishingiem i zagrożeniami ---
 
@@ -23,7 +29,3 @@ https://raw.githubusercontent.com/DandelionSprout/adfilt/refs/heads/master/Alter
 
 # urlhaus-filter (format: domains) – malware / botnet C&C (bardzo mała)
 https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-dnscrypt-blocked-names-online.txt
-
-https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/wildcard/multi-onlydomains.txt
-
-https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/refs/heads/master/polish-pihole-filters/hostfile.txt
