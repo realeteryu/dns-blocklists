@@ -18,7 +18,7 @@ https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/refs/heads/master/po
 
 # --- Ochrona przed phishingiem i zagrożeniami ---
 
-# KADhosts (format: domains) – opcjonalnie; usuń, jeśli chcesz ciąć liczbę list
+# KADhosts (format: domains) – scam, malware, phishing
 https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
 
 # phishing-filter (format: domains) – ogólny phishing
