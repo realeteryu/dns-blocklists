@@ -48,8 +48,8 @@ with open(raw_file, "r", encoding="utf-8-sig", errors="ignore") as f:
         if not line:
             continue
 
-        # --- Obsługa formatów dnsmasq (address=/domena/ i server=/domena/) ---
-        if line.startswith("address=/") or line.startswith("server=/"):
+        # --- Obsługa formatów dnsmasq (address=/, server=/ i local=/) ---
+        if line.startswith("address=/") or line.startswith("server=/") or line.startswith("local=/"):
             parts = line.split('/')
             if len(parts) > 1:
                 line = parts[1]
