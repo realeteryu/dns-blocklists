@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Instalacja msgpack
-        run: pip install msgpack
+        run: python3 -m pip install msgpack
 
       - name: Pobieranie i agregacja list
         run: bash scripts/download_sources.sh
