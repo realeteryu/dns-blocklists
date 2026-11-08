@@ -110,5 +110,5 @@ with open(output_txt, "w", encoding="utf-8") as f:
 print(f"Zapisano do {output_txt}")
 
 with open(output_bin, "wb") as f:
-    msgpack.packb(list(optimized_domains), use_bin_type=True)
+    f.write(msgpack.packb(list(optimized_domains), use_bin_type=True))
 print(f"Zapisano do {output_bin}")
