@@ -109,6 +109,7 @@ with open(output_txt, "w", encoding="utf-8") as f:
         f.write(d + "\n")
 print(f"Zapisano do {output_txt}")
 
+# msgpack: sortuj, żeby output był deterministyczny
 with open(output_bin, "wb") as f:
-    f.write(msgpack.packb(list(optimized_domains), use_bin_type=True))
+    f.write(msgpack.packb(sorted(optimized_domains), use_bin_type=True))
 print(f"Zapisano do {output_bin}")
