@@ -5,7 +5,6 @@ on:
     branches:
       - main
   schedule:
-    # Codziennie o 3:00 UTC
     - cron: '0 3 * * *'
   workflow_dispatch:
 
@@ -24,16 +23,19 @@ jobs:
       - name: Checkout repozytorium
         uses: actions/checkout@v5
 
+      - name: Instalacja msgpack
+        run: pip install msgpack
+
       - name: Pobieranie i agregacja list
         run: bash scripts/download_sources.sh
 
-      - name: Uruchomienie skryptu budującego listę
+      - name: Budowanie listy
         run: python3 scripts/build_blocklist.py
 
-      - name: Walidacja pliku wynikowego
+      - name: Walidacja
         run: |
-          if [ ! -s output/doh_combined.txt ]; then
-            echo "BŁĄD: Wygenerowany plik wynikowy jest pusty!"
+          if [ ! -s output/doh_combined.txt ] || [ ! -s output/doh_combined.msgpack ]; then
+            echo "BŁĄD: Jeden z plików wynikowych jest pusty!"
             exit 1
           fi
 
@@ -41,20 +43,21 @@ jobs:
           echo "Gotowe! Końcowa liczba domen: $DOMAIN_COUNT"
 
           if [ "$DOMAIN_COUNT" -lt 10000 ]; then
-            echo "BŁĄD: Wygenerowana lista ma podejrzanie mało wpisów ($DOMAIN_COUNT). Przerywam."
+            echo "BŁĄD: Podejrzanie mało wpisów ($DOMAIN_COUNT). Przerywam."
             exit 1
           fi
 
-      - name: Zapisz zmiany w repozytorium
+      - name: Commit i push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/doh_combined.txt allowlist.txt
+          git add output/doh_combined.txt output/doh_combined.msgpack allowlist.txt
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update and optimize blocklist [skip ci]" && git push)
 
-      - name: Wgraj listę do Cloudflare KV
+      - name: Upload do KV
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           npx wrangler kv key put --namespace-id="${{ secrets.CF_KV_NAMESPACE_ID }}" "blocklist" --path=output/doh_combined.txt --remote
+          npx wrangler kv key put --namespace-id="${{ secrets.CF_KV_NAMESPACE_ID }}" "blocklist_bin" --path=output/doh_combined.msgpack --remote
