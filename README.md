@@ -5,19 +5,20 @@ Automatycznie aktualizowana lista blokad DNS dla resolvera [doh-worker](https://
 ## Działanie
 
 1. **Pobieranie:** Odczyt z `sources.txt`. Odrzucanie błędów HTTP i odpowiedzi HTML.
-2. **Normalizacja:** Ekstrakcja czystych domen z formatów hosts, dnsmasq, adblock itp. Odrzucanie adresów IP i komentarzy.
+2. **Normalizacja:** Ekstrakcja czystych domen z popularnych formatów. Odrzucanie adresów IP i komentarzy.
 3. **Aglomeracja:** Usuwanie poddomen, jeśli domena nadrzędna znajduje się na liście (np. `sub.domena.com` zostaje usunięte, jeśli `domena.com` jest blokowana).
 4. **Wyjątki:** Filtrowanie przez `allowlist.txt`.
 5. **Deploy:** Commit do repozytorium i wgranie plików bezpośrednio do Cloudflare KV.
 
 ## Obsługiwane formaty
 
-Parser wyodrębnia domeny z następujących zapisów:
-*   `domains`: `domena.com`
-*   `wildcards`: `*.domena.com`
-*   `hosts`: `0.0.0.0 domena.com`, `127.0.0.1 domena.com`
-*   `dnsmasq`: `address=/domena.com/0.0.0.0`
-*   `adblock`: `||domena.com^`
+| Format | Przykład zapisu |
+| :--- | :--- |
+| `domains` | `domena.com` |
+| `wildcards` | `*.domena.com` |
+| `hosts` | `0.0.0.0 domena.com`<br>`127.0.0.1 domena.com` |
+| `dnsmasq` | `address=/domena.com/0.0.0.0` |
+| `adblock` | `\|\|domena.com^` (ignoruje `$`) |
 
 ## Pliki wyjściowe
 
