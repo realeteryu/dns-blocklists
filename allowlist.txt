@@ -4,3 +4,6 @@ umami.is
 # Infrastruktura (zapobiega błędom w panelach i API)
 github.com
 cloudflare.com
+
+# Aplikacje (Obtainium)
+imranr.dev
