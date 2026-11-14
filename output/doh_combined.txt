@@ -36263,6 +36263,7 @@ analytics.uks.live.dna.em-infra.com
 analytics.ulmer-weihnachtsfreude.de
 analytics.ultralinxnetwork.com
 analytics.umami-view.app
+analytics.umami.is
 analytics.umbrascans.com
 analytics.umetrip.com
 analytics.umetrip.com.c.vedcdnlb.com
@@ -40591,6 +40592,7 @@ app.ugo.srl
 app.uhcougars.com
 app.uk-tvlicensing-renewals.shop
 app.umami.com.ph
+app.umami.is
 app.umassathletics.com
 app.umterps.com
 app.unbounce.com
@@ -67146,6 +67148,7 @@ cloud.mymailwall.com
 cloud.ogury.io
 cloud.tgpa.qq.com
 cloud.trapptechnology.com
+cloud.umami.is
 cloud.webtrack.online
 cloud.works
 cloud102.hostgator.com
@@ -112143,6 +112146,7 @@ gateway.optimove.events
 gateway.paradoxgroup.co
 gateway.pgaofamericagolf.com
 gateway.royal-eng.ps
+gateway.umami.is
 gatewaydebg.com
 gatewayfailedbacks.com
 gatewaypackersandmovers.com
@@ -116727,7 +116731,6 @@ goat.tailspace.net
 goat.vrds.app
 goatbillions.com
 goatcounter.billmill.org
-goatcounter.com
 goatcounter.frozenfractal.com
 goatcounter.regiolux.de
 goatcounter.ssp.sh
@@ -203457,6 +203460,7 @@ plausible.iker.software
 plausible.imio-test.be
 plausible.imio.be
 plausible.immobilienpool.de
+plausible.imranr.dev
 plausible.in-two.com
 plausible.indeed.at
 plausible.inderbitzin.io
