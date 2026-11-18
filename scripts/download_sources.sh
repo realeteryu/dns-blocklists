@@ -1,47 +1,121 @@
 #!/bin/bash
-set -eo pipefail
+set -Eeuo pipefail
+
+SOURCES_FILE="sources.txt"
+OUTPUT_FILE="combined_raw.txt"
+
+if [ ! -f "$SOURCES_FILE" ]; then
+    echo "BŁĄD: Brak pliku $SOURCES_FILE"
+    exit 1
+fi
 
 mkdir -p output
-> combined_raw.txt
 
-# Inicjalizacja allowlisty z nagłówkiem, jeśli nie istnieje
-if [ ! -f allowlist.txt ]; then
-  echo "# Dodaj domeny do wyjątków (jedna na linię)" > allowlist.txt
+TEMP_DIR=$(mktemp -d ".download_sources.XXXXXX")
+
+cleanup() {
+    rm -rf "$TEMP_DIR"
+}
+
+trap cleanup EXIT
+
+TEMP_OUTPUT="$TEMP_DIR/combined_raw.txt"
+
+: > "$TEMP_OUTPUT"
+
+SOURCE_COUNT=0
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+
+while IFS= read -r url || [ -n "$url" ]; do
+    url="${url%$'\r'}"
+
+    [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
+
+    SOURCE_COUNT=$((SOURCE_COUNT + 1))
+done < "$SOURCES_FILE"
+
+if [ "$SOURCE_COUNT" -eq 0 ]; then
+    echo "BŁĄD: Brak aktywnych źródeł w $SOURCES_FILE"
+    exit 1
 fi
 
-# Sprawdź, czy plik źródeł istnieje
-if [ ! -f sources.txt ]; then
-  echo "BŁĄD: Brak pliku sources.txt"
-  exit 1
-fi
+MIN_SUCCESS=$(( (SOURCE_COUNT * 70 + 99) / 100 ))
 
-while IFS= read -r url; do
-  [[ -z "$url" || "$url" =~ ^# ]] && continue
-  echo "Pobieranie: $url"
+echo "=== Pobieranie źródeł DNS ==="
+echo "Skonfigurowane źródła: $SOURCE_COUNT"
+echo "Wymagane udane pobrania: $MIN_SUCCESS"
+echo
 
-  HTTP_STATUS=$(curl -sL \
-    --retry 3 --retry-delay 5 --retry-connrefused \
-    --connect-timeout 10 --max-time 120 \
-    -w "%{http_code}" -o temp_list.txt "$url" 2>/dev/null)
-  [ -z "$HTTP_STATUS" ] && HTTP_STATUS="000"
+while IFS= read -r url || [ -n "$url" ]; do
+    url="${url%$'\r'}"
 
-  if [ "$HTTP_STATUS" = "200" ] && [ -s temp_list.txt ]; then
-    # Odrzuć odpowiedzi HTML (np. strony błędów zwracające 200)
-    if head -c 512 temp_list.txt | grep -qiE '<!doctype|<html|<head|<body'; then
-      echo "Ostrzeżenie: $url zwrócił HTML - pomijam."
+    [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
+
+    SOURCE_FILE="$TEMP_DIR/source_$((SUCCESS_COUNT + FAILED_COUNT + 1)).txt"
+
+    echo "Pobieranie: $url"
+
+    HTTP_STATUS="000"
+
+    if HTTP_STATUS=$(curl -sSL \
+        --retry 3 \
+        --retry-delay 5 \
+        --retry-connrefused \
+        --connect-timeout 10 \
+        --max-time 120 \
+        -w "%{http_code}" \
+        -o "$SOURCE_FILE" \
+        "$url" 2>/dev/null); then
+        :
     else
-      cat temp_list.txt >> combined_raw.txt
-      echo "" >> combined_raw.txt
+        HTTP_STATUS="${HTTP_STATUS:-000}"
     fi
-  else
-    echo "Ostrzeżenie: Błąd pobierania ($HTTP_STATUS) dla $url - pomijam."
-  fi
-  rm -f temp_list.txt
-done < sources.txt
 
-if [ ! -s combined_raw.txt ]; then
-  echo "BŁĄD: Pobrane listy są puste!"
-  exit 1
+    if [ "$HTTP_STATUS" = "200" ] && [ -s "$SOURCE_FILE" ]; then
+        if head -c 512 "$SOURCE_FILE" |
+            grep -qiE '<!doctype|<html|<head|<body'; then
+
+            echo "BŁĄD ŹRÓDŁA: Odpowiedź HTML — pomijam."
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+
+        else
+            cat "$SOURCE_FILE" >> "$TEMP_OUTPUT"
+            printf '\n' >> "$TEMP_OUTPUT"
+
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            echo "OK: Źródło pobrane."
+        fi
+    else
+        echo "BŁĄD ŹRÓDŁA: HTTP $HTTP_STATUS — pomijam."
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
+
+    rm -f "$SOURCE_FILE"
+
+    echo
+done < "$SOURCES_FILE"
+
+echo "=== Podsumowanie pobierania ==="
+echo "Wszystkie źródła: $SOURCE_COUNT"
+echo "Pobrane poprawnie: $SUCCESS_COUNT"
+echo "Nieudane: $FAILED_COUNT"
+echo "Wymagane minimum: $MIN_SUCCESS"
+
+if [ "$SUCCESS_COUNT" -lt "$MIN_SUCCESS" ]; then
+    echo
+    echo "BŁĄD: Za mało poprawnie pobranych źródeł."
+    echo "Poprzedni plik $OUTPUT_FILE pozostaje bez zmian."
+    exit 1
 fi
 
-echo "Pobieranie zakończone. Plik combined_raw.txt jest gotowy."
+if [ ! -s "$TEMP_OUTPUT" ]; then
+    echo "BŁĄD: Zebrane dane są puste."
+    exit 1
+fi
+
+mv -f "$TEMP_OUTPUT" "$OUTPUT_FILE"
+
+echo
+echo "Pobieranie zakończone pomyślnie."
+echo "Gotowy plik: $OUTPUT_FILE"
