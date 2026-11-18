@@ -1,0 +1,4 @@
+# Własne blokady DNS
+# Jedna domena w każdym wierszu.
+# Dodawaj tutaj wyłącznie własne blokady.
+# Nie kopiuj domen z zewnętrznych list.
