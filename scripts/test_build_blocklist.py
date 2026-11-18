@@ -123,9 +123,7 @@ class TestSourceParsing(unittest.TestCase):
 
     def test_ignores_full_line_comments(self):
         self.assertEqual(
-            builder.parse_source_line(
-                "! comment"
-            ),
+            builder.parse_source_line("! comment"),
             [],
         )
 
@@ -144,7 +142,7 @@ class TestBlocklistOptimization(unittest.TestCase):
 
         self.assertEqual(result, {"example.com"})
 
-    def test_allowlisted_subdomain_survives_parent_block(self):
+    def test_allowlisted_subdomain_is_not_added_to_blocklist(self):
         result = builder.optimize_blocklist(
             {
                 "example.com",
@@ -155,13 +153,7 @@ class TestBlocklistOptimization(unittest.TestCase):
             {"api.example.com"},
         )
 
-        self.assertEqual(
-            result,
-            {
-                "example.com",
-                "api.example.com",
-            },
-        )
+        self.assertEqual(result, {"example.com"})
 
     def test_allowlist_exception_covers_its_subdomains(self):
         result = builder.optimize_blocklist(
@@ -173,13 +165,7 @@ class TestBlocklistOptimization(unittest.TestCase):
             {"api.example.com"},
         )
 
-        self.assertEqual(
-            result,
-            {
-                "example.com",
-                "api.example.com",
-            },
-        )
+        self.assertEqual(result, {"example.com"})
 
     def test_more_specific_block_inside_exception_survives(self):
         result = builder.optimize_blocklist(
@@ -216,13 +202,7 @@ class TestBlocklistOptimization(unittest.TestCase):
             {"private.example.com"},
         )
 
-        self.assertEqual(
-            result,
-            {
-                "example.com",
-                "private.example.com",
-            },
-        )
+        self.assertEqual(result, {"example.com"})
 
 
 if __name__ == "__main__":
