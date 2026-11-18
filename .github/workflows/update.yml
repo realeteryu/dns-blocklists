@@ -26,6 +26,9 @@ jobs:
       - name: Instalacja msgpack
         run: python3 -m pip install msgpack
 
+      - name: Testy generatora
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
+
       - name: Pobieranie i agregacja list
         run: bash scripts/download_sources.sh
 
@@ -37,7 +40,8 @@ jobs:
           for FILE in \
             output/doh_combined.txt \
             output/doh_combined.msgpack \
-            output/doh_allowlist.msgpack
+            output/doh_allowlist.msgpack \
+            output/doh_policy.msgpack
           do
             if [ ! -s "$FILE" ]; then
               echo "BŁĄD: Brak pliku lub pusty plik: $FILE"
@@ -64,6 +68,7 @@ jobs:
             output/doh_combined.txt \
             output/doh_combined.msgpack \
             output/doh_allowlist.msgpack \
+            output/doh_policy.msgpack \
             allowlist.txt
 
           if ! git diff --quiet || ! git diff --staged --quiet; then
@@ -93,4 +98,15 @@ jobs:
             --namespace-id="${{ secrets.CF_KV_NAMESPACE_ID }}" \
             "allowlist_bin" \
             --path=output/doh_allowlist.msgpack \
+            --remote
+
+      - name: Upload polityki DNS do Cloudflare KV
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler kv key put \
+            --namespace-id="${{ secrets.CF_KV_NAMESPACE_ID }}" \
+            "policy_bin" \
+            --path=output/doh_policy.msgpack \
             --remote
