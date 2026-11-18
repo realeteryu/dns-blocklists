@@ -1,0 +1,35 @@
+name: Test DNS Blocklist
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/build_blocklist.py"
+      - "scripts/test_build_blocklist.py"
+      - ".github/workflows/test-blocklist.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test generatora
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Pobranie repozytorium
+        uses: actions/checkout@v5
+
+      - name: Instalacja Pythona
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalacja zależności
+        run: python -m pip install msgpack
+
+      - name: Uruchomienie testów
+        run: python -m unittest discover -s scripts -p "test_*.py" -v
