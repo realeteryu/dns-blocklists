@@ -8,6 +8,7 @@ from pathlib import Path
 
 RAW_FILE = Path("combined_raw.txt")
 ALLOWLIST_FILE = Path("allowlist.txt")
+CUSTOM_BLOCKLIST_FILE = Path("custom-blocklist.txt")
 
 OUTPUT_DIR = Path("output")
 OUTPUT_TXT = OUTPUT_DIR / "doh_combined.txt"
@@ -91,18 +92,24 @@ def normalize_domain(value):
     return domain
 
 
-def load_allowlist():
-    """Wczytuje i waliduje wyjątki użytkownika."""
+def load_domain_file(path, required=True):
+    """Wczytuje plik zawierający po jednej domenie w wierszu."""
 
-    if not ALLOWLIST_FILE.exists():
-        raise FileNotFoundError(
-            f"Brak pliku {ALLOWLIST_FILE}. "
-            "Nie można bezpiecznie zbudować listy bez allowlisty."
+    if not path.exists():
+        if required:
+            raise FileNotFoundError(
+                f"Brak wymaganego pliku: {path}"
+            )
+
+        print(
+            f"UWAGA: Nie znaleziono {path}. "
+            "Własne blokady nie zostaną dodane."
         )
+        return set()
 
-    allowlist = set()
+    domains = set()
 
-    with ALLOWLIST_FILE.open(
+    with path.open(
         "r",
         encoding="utf-8-sig",
     ) as file:
@@ -117,13 +124,28 @@ def load_allowlist():
 
             if domain is None:
                 raise ValueError(
-                    f"Nieprawidłowy wpis allowlisty "
+                    f"Nieprawidłowa domena w {path} "
                     f"(linia {line_number}): {line}"
                 )
 
-            allowlist.add(domain)
+            domains.add(domain)
 
-    return allowlist
+    return domains
+
+
+def load_allowlist():
+    """Wczytuje wyjątki użytkownika."""
+
+    return load_domain_file(ALLOWLIST_FILE)
+
+
+def load_custom_blocklist():
+    """Wczytuje ręczne blokady użytkownika."""
+
+    return load_domain_file(
+        CUSTOM_BLOCKLIST_FILE,
+        required=False,
+    )
 
 
 def remove_inline_comment(line):
@@ -184,12 +206,7 @@ def parse_dnsmasq_line(line):
 
 
 def parse_adblock_line(line):
-    """
-    Obsługuje wyłącznie jednoznaczne reguły domenowe AdBlock.
-
-    Wyjątki @@ nie są automatycznie przenoszone
-    do allowlisty użytkownika.
-    """
+    """Rozpoznaje jednoznaczne reguły domenowe AdBlock."""
 
     if line.startswith("@@"):
         return []
@@ -269,7 +286,6 @@ def load_block_domains():
 
         for line in file:
             stats["raw_lines"] += 1
-
             line = line.strip()
 
             if not line or line.startswith("#") or line.startswith("!"):
@@ -301,53 +317,85 @@ def load_block_domains():
     return domains, stats
 
 
-def optimize_blocklist(block_domains, allowlist):
+def optimize_blocklist(
+    block_domains,
+    allowlist,
+    custom_blocklist=None,
+):
     """
-    Usuwa redundantne blokady, zachowując semantykę
-    najbardziej szczegółowej reguły.
+    Redukuje redundantne reguły.
 
-    Reguła allow lub block o największej szczegółowości
-    decyduje o wyniku dla danej domeny.
+    Zasady:
+    - najbardziej szczegółowa domena wygrywa;
+    - przy identycznej domenie ręczna reguła wygrywa
+      z regułą zewnętrzną;
+    - ręczna blokada i ręczny wyjątek tej samej domeny
+      są konfliktem;
+    - redundantne reguły o tej samej akcji są usuwane.
     """
 
-    effective_rules = {
-        domain: "allow"
-        for domain in allowlist
-    }
+    if custom_blocklist is None:
+        custom_blocklist = set()
 
-    optimized = set()
+    conflict = allowlist & custom_blocklist
 
-    sorted_domains = sorted(
-        block_domains,
-        key=lambda domain: (
-            domain.count("."),
-            len(domain),
-            domain,
+    if conflict:
+        domains = ", ".join(sorted(conflict))
+
+        raise ValueError(
+            "Konflikt: te same domeny znajdują się "
+            f"w ręcznej blokadzie i allowliście: {domains}"
+        )
+
+    rules = {}
+
+    for domain in block_domains:
+        rules[domain] = ("block", 1)
+
+    for domain in allowlist:
+        rules[domain] = ("allow", 2)
+
+    for domain in custom_blocklist:
+        rules[domain] = ("block", 3)
+
+    optimized_blocks = set()
+    optimized_allows = set()
+
+    effective_rules = {}
+
+    sorted_rules = sorted(
+        rules.items(),
+        key=lambda item: (
+            item[0].count("."),
+            len(item[0]),
+            item[0],
         ),
     )
 
-    for domain in sorted_domains:
-
-        if domain in allowlist:
-            continue
+    for domain, (action, priority) in sorted_rules:
 
         parts = domain.split(".")
-        nearest_rule = None
+        inherited_action = None
 
         for index in range(1, len(parts)):
             parent = ".".join(parts[index:])
 
             if parent in effective_rules:
-                nearest_rule = effective_rules[parent]
+                inherited_action = effective_rules[parent]
                 break
 
-        if nearest_rule == "block":
+        if inherited_action == action:
+            effective_rules[domain] = action
             continue
 
-        optimized.add(domain)
-        effective_rules[domain] = "block"
+        effective_rules[domain] = action
 
-    return optimized
+        if action == "block":
+            optimized_blocks.add(domain)
+        else:
+            optimized_allows.add(domain)
+
+    return optimized_blocks
 
 
 def write_atomic(path, data):
@@ -370,8 +418,14 @@ def write_atomic(path, data):
             temporary_path.unlink()
 
 
-def validate_outputs(blocklist, allowlist, txt_data, blocklist_data, allowlist_data):
-    """Sprawdza zgodność danych przed zapisaniem wyników."""
+def validate_outputs(
+    blocklist,
+    allowlist,
+    txt_data,
+    blocklist_data,
+    allowlist_data,
+):
+    """Sprawdza zgodność wyników przed zapisem."""
 
     decoded_txt = txt_data.decode("utf-8").splitlines()
 
@@ -402,10 +456,10 @@ def validate_outputs(blocklist, allowlist, txt_data, blocklist_data, allowlist_d
 
     if set(decoded_blocklist) & set(decoded_allowlist):
         raise ValueError(
-            "Ta sama domena znajduje się na blokliście i allowliście."
+            "Ta sama domena znajduje się w obu wynikach."
         )
 
-    for domain in decoded_blocklist:
+    for domain in decoded_blocklist + decoded_allowlist:
         if normalize_domain(domain) != domain:
             raise ValueError(
                 f"Nieprawidłowa domena w wyniku: {domain}"
@@ -416,19 +470,23 @@ def main():
     print("=== DNS Blocklist Builder ===")
 
     allowlist = load_allowlist()
-
-    print(f"Wyjątki użytkownika: {len(allowlist)}")
+    custom_blocklist = load_custom_blocklist()
 
     block_domains, stats = load_block_domains()
 
+    print(f"Źródłowe domeny: {len(block_domains)}")
+    print(f"Własne blokady: {len(custom_blocklist)}")
+    print(f"Wyjątki użytkownika: {len(allowlist)}")
     print(f"Surowych linii: {stats['raw_lines']}")
-    print(f"Poprawnych domen: {len(block_domains)}")
     print(f"Odrzuconych wpisów: {stats['invalid']}")
     print(f"Pominiętych linii: {stats['ignored']}")
+
+    all_block_domains = block_domains | custom_blocklist
 
     optimized = optimize_blocklist(
         block_domains,
         allowlist,
+        custom_blocklist,
     )
 
     if not optimized:
@@ -467,11 +525,11 @@ def main():
 
     print()
     print("=== Podsumowanie ===")
-    print(f"Przed optymalizacją: {len(block_domains)}")
+    print(f"Przed optymalizacją: {len(all_block_domains)}")
     print(f"Po optymalizacji: {len(optimized)}")
     print(
         "Usunięte redundantne blokady: "
-        f"{len(block_domains) - len(optimized)}"
+        f"{len(all_block_domains) - len(optimized)}"
     )
     print(f"Wyjątki: {len(allowlist)}")
     print()
