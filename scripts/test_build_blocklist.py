@@ -155,7 +155,7 @@ class TestBlocklistOptimization(unittest.TestCase):
 
         self.assertEqual(result, {"example.com"})
 
-    def test_allowlist_exception_covers_its_subdomains(self):
+    def test_more_specific_external_block_overrides_parent_exception(self):
         result = builder.optimize_blocklist(
             {
                 "example.com",
@@ -165,7 +165,13 @@ class TestBlocklistOptimization(unittest.TestCase):
             {"api.example.com"},
         )
 
-        self.assertEqual(result, {"example.com"})
+        self.assertEqual(
+            result,
+            {
+                "example.com",
+                "v2.api.example.com",
+            },
+        )
 
     def test_more_specific_block_inside_exception_survives(self):
         result = builder.optimize_blocklist(
@@ -185,7 +191,7 @@ class TestBlocklistOptimization(unittest.TestCase):
             },
         )
 
-    def test_allowlist_wins_for_identical_domain(self):
+    def test_allowlist_wins_for_identical_external_domain(self):
         result = builder.optimize_blocklist(
             {"example.com"},
             {"example.com"},
