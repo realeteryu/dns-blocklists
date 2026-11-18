@@ -197,7 +197,9 @@ def parse_dnsmasq_line(line):
     if not domain:
         return []
 
-    if record_type == "address" and target:
+    # dnsmasq używa '#' jako celu oznaczającego NXDOMAIN.
+    # Jest to prawidłowa reguła blokująca domenę.
+    if record_type == "address" and target and target != "#":
         try:
             ipaddress.ip_address(target)
         except ValueError:
@@ -483,6 +485,17 @@ def validate_outputs(
                 "Polityka MessagePack ma nieprawidłową strukturę."
             )
 
+        # Najpierw sprawdzamy konflikt wewnątrz polityki.
+        # Dzięki temu błąd strukturalny nie zostanie ukryty
+        # przez późniejsze porównanie zawartości list.
+        if (
+            set(decoded_policy["blocklist"])
+            & set(decoded_policy["allowlist"])
+        ):
+            raise ValueError(
+                "Polityka zawiera domenę w obu listach."
+            )
+
         if decoded_policy["blocklist"] != sorted(blocklist):
             raise ValueError(
                 "Bloklista w polityce nie odpowiada wynikowi."
@@ -491,14 +504,6 @@ def validate_outputs(
         if decoded_policy["allowlist"] != sorted(allowlist):
             raise ValueError(
                 "Allowlista w polityce nie odpowiada wynikowi."
-            )
-
-        if (
-            set(decoded_policy["blocklist"])
-            & set(decoded_policy["allowlist"])
-        ):
-            raise ValueError(
-                "Polityka zawiera domenę w obu listach."
             )
 
 
