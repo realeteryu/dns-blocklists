@@ -20,6 +20,18 @@ DOMAIN_LABEL_PATTERN = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
 )
 
+DNSMASQ_PATTERN = re.compile(
+    r"^(address|server|local)=/([^/]+)/([^/]*)$"
+)
+
+ADBLOCK_DOMAIN_PATTERN = re.compile(
+    r"^\|\|([a-z0-9.-]+)\^(?:\$[a-z0-9_.,=~-]+)?$"
+)
+
+ADBLOCK_ANCHORED_PATTERN = re.compile(
+    r"^\|([a-z0-9.-]+)\|$"
+)
+
 IGNORED_DOMAINS = {
     "localhost",
     "local",
@@ -62,12 +74,12 @@ def normalize_domain(value):
 
     labels = domain.split(".")
 
-    # Blocklista zawiera wyłącznie pełne nazwy domenowe.
     if len(labels) < 2:
         return None
 
     if any(
-        not label or len(label) > 63
+        not label
+        or len(label) > 63
         or not DOMAIN_LABEL_PATTERN.fullmatch(label)
         for label in labels
     ):
@@ -91,8 +103,10 @@ def load_allowlist():
     allowlist = set()
 
     with ALLOWLIST_FILE.open(
-        "r", encoding="utf-8-sig"
+        "r",
+        encoding="utf-8-sig",
     ) as file:
+
         for line_number, line in enumerate(file, 1):
             line = line.strip()
 
@@ -112,8 +126,19 @@ def load_allowlist():
     return allowlist
 
 
+def remove_inline_comment(line):
+    """Usuwa komentarz rozpoczynający się po białym znaku."""
+
+    match = re.search(r"\s+#", line)
+
+    if match:
+        return line[:match.start()].strip()
+
+    return line.strip()
+
+
 def parse_hosts_line(line):
-    """Rozpoznaje wpis hosts i zwraca wszystkie aliasy."""
+    """Rozpoznaje wpis hosts i zwraca aliasy domenowe."""
 
     parts = line.split()
 
@@ -125,27 +150,42 @@ def parse_hosts_line(line):
     except ValueError:
         return None
 
-    return parts[1:]
+    aliases = []
+
+    for item in parts[1:]:
+        if item.startswith("#"):
+            break
+
+        aliases.append(item)
+
+    return aliases
 
 
 def parse_dnsmasq_line(line):
     """Rozpoznaje obsługiwane wpisy dnsmasq."""
 
-    match = re.fullmatch(
-        r"(?:address|server|local)=/([^/]+)/.*",
-        line,
-    )
+    match = DNSMASQ_PATTERN.fullmatch(line)
 
     if not match:
         return None
 
-    return [match.group(1)]
+    record_type, domain, target = match.groups()
+
+    if not domain:
+        return []
+
+    if record_type == "address" and target:
+        try:
+            ipaddress.ip_address(target)
+        except ValueError:
+            return []
+
+    return [domain]
 
 
 def parse_adblock_line(line):
     """
-    Obsługuje wyłącznie reguły AdBlock, które można
-    bezpiecznie sprowadzić do blokady całej domeny.
+    Obsługuje wyłącznie jednoznaczne reguły domenowe AdBlock.
 
     Wyjątki @@ nie są automatycznie przenoszone
     do allowlisty użytkownika.
@@ -154,21 +194,18 @@ def parse_adblock_line(line):
     if line.startswith("@@"):
         return []
 
-    if line.startswith("||"):
-        candidate = line[2:]
+    match = ADBLOCK_DOMAIN_PATTERN.fullmatch(line)
 
-        for separator in ("^", "/", "?", "*", "|", "$"):
-            candidate = candidate.split(separator, 1)[0]
+    if match:
+        return [match.group(1)]
 
-        return [candidate] if candidate else []
+    match = ADBLOCK_ANCHORED_PATTERN.fullmatch(line)
 
-    if line.startswith("|"):
-        candidate = line[1:]
+    if match:
+        return [match.group(1)]
 
-        for separator in ("^", "/", "?", "*", "|", "$"):
-            candidate = candidate.split(separator, 1)[0]
-
-        return [candidate] if candidate else []
+    if line.startswith(("||", "|")):
+        return []
 
     return None
 
@@ -181,29 +218,29 @@ def parse_source_line(line):
     if not line or line.startswith("#") or line.startswith("!"):
         return []
 
-    # Hosts: IP + jedna lub wiele domen.
+    line = remove_inline_comment(line)
+
+    if not line:
+        return []
+
     hosts = parse_hosts_line(line)
 
     if hosts is not None:
         return hosts
 
-    # dnsmasq.
     dnsmasq = parse_dnsmasq_line(line)
 
     if dnsmasq is not None:
         return dnsmasq
 
-    # AdBlock / EasyList.
     adblock = parse_adblock_line(line)
 
     if adblock is not None:
         return adblock
 
-    # Wildcard domenowy.
     if line.startswith("*."):
         return [line[2:]]
 
-    # Czysta domena.
     return [line]
 
 
@@ -225,7 +262,9 @@ def load_block_domains():
     }
 
     with RAW_FILE.open(
-        "r", encoding="utf-8-sig", errors="replace"
+        "r",
+        encoding="utf-8-sig",
+        errors="replace",
     ) as file:
 
         for line in file:
@@ -267,8 +306,8 @@ def optimize_blocklist(block_domains, allowlist):
     Usuwa redundantne blokady, zachowując semantykę
     najbardziej szczegółowej reguły.
 
-    Blokada rodzica nie może usunąć bardziej szczegółowej
-    blokady znajdującej się pod wyjątkiem.
+    Reguła allow lub block o największej szczegółowości
+    decyduje o wyniku dla danej domeny.
     """
 
     effective_rules = {
@@ -280,12 +319,15 @@ def optimize_blocklist(block_domains, allowlist):
 
     sorted_domains = sorted(
         block_domains,
-        key=lambda domain: (domain.count("."), len(domain)),
+        key=lambda domain: (
+            domain.count("."),
+            len(domain),
+            domain,
+        ),
     )
 
     for domain in sorted_domains:
 
-        # Przy identycznej domenie wyjątek wygrywa.
         if domain in allowlist:
             continue
 
@@ -299,8 +341,6 @@ def optimize_blocklist(block_domains, allowlist):
                 nearest_rule = effective_rules[parent]
                 break
 
-        # Blokada nadrzędna już obejmuje tę domenę.
-        # Wyjątek nadrzędny nie obejmuje jej blokadą.
         if nearest_rule == "block":
             continue
 
@@ -313,18 +353,70 @@ def optimize_blocklist(block_domains, allowlist):
 def write_atomic(path, data):
     """Zapisuje plik tymczasowo, a następnie podmienia wynik."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    temporary_path = path.with_suffix(
+        path.suffix + ".tmp"
+    )
 
-    temporary_path.write_bytes(data)
-    temporary_path.replace(path)
+    try:
+        temporary_path.write_bytes(data)
+        temporary_path.replace(path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
+def validate_outputs(blocklist, allowlist, txt_data, blocklist_data, allowlist_data):
+    """Sprawdza zgodność danych przed zapisaniem wyników."""
+
+    decoded_txt = txt_data.decode("utf-8").splitlines()
+
+    decoded_blocklist = msgpack.unpackb(
+        blocklist_data,
+        raw=False,
+    )
+
+    decoded_allowlist = msgpack.unpackb(
+        allowlist_data,
+        raw=False,
+    )
+
+    if decoded_txt != sorted(blocklist):
+        raise ValueError(
+            "TXT nie odpowiada wygenerowanej liście domen."
+        )
+
+    if decoded_blocklist != sorted(blocklist):
+        raise ValueError(
+            "MessagePack bloklisty nie odpowiada TXT."
+        )
+
+    if decoded_allowlist != sorted(allowlist):
+        raise ValueError(
+            "MessagePack allowlisty zawiera niezgodne dane."
+        )
+
+    if set(decoded_blocklist) & set(decoded_allowlist):
+        raise ValueError(
+            "Ta sama domena znajduje się na blokliście i allowliście."
+        )
+
+    for domain in decoded_blocklist:
+        if normalize_domain(domain) != domain:
+            raise ValueError(
+                f"Nieprawidłowa domena w wyniku: {domain}"
+            )
 
 
 def main():
     print("=== DNS Blocklist Builder ===")
 
     allowlist = load_allowlist()
+
     print(f"Wyjątki użytkownika: {len(allowlist)}")
 
     block_domains, stats = load_block_domains()
@@ -361,7 +453,14 @@ def main():
         use_bin_type=True,
     )
 
-    # Wszystkie dane są przygotowywane przed zapisem.
+    validate_outputs(
+        optimized,
+        allowlist,
+        txt_data,
+        blocklist_data,
+        allowlist_data,
+    )
+
     write_atomic(OUTPUT_TXT, txt_data)
     write_atomic(OUTPUT_BIN, blocklist_data)
     write_atomic(OUTPUT_ALLOWLIST_BIN, allowlist_data)
@@ -370,7 +469,10 @@ def main():
     print("=== Podsumowanie ===")
     print(f"Przed optymalizacją: {len(block_domains)}")
     print(f"Po optymalizacji: {len(optimized)}")
-    print(f"Usunięte redundantne blokady: {len(block_domains) - len(optimized)}")
+    print(
+        "Usunięte redundantne blokady: "
+        f"{len(block_domains) - len(optimized)}"
+    )
     print(f"Wyjątki: {len(allowlist)}")
     print()
     print(f"TXT: {OUTPUT_TXT}")
