@@ -11,8 +11,8 @@ class TestNormalizeDomain(unittest.TestCase):
 
     def test_normalizes_case_and_trailing_dot(self):
         self.assertEqual(
-            normalize_domain("Example.COM."),
-            "example.com",
+            normalize_domain("Example.PL."),
+            "example.pl",
         )
 
     def test_accepts_valid_subdomain(self):
