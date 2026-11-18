@@ -196,7 +196,7 @@ def parse_dnsmasq_line(line):
     if not domain:
         return []
 
-    if record_type == "address" and target:
+    if record_type == "address" and target and target != "#":
         try:
             ipaddress.ip_address(target)
         except ValueError:
