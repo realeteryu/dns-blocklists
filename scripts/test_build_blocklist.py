@@ -422,7 +422,20 @@ class TestOutputValidation(unittest.TestCase):
             use_bin_type=True,
         )
 
-        return txt_data, blocklist_data, allowlist_data
+        policy_data = msgpack.packb(
+            {
+                "blocklist": sorted_blocks,
+                "allowlist": sorted_allows,
+            },
+            use_bin_type=True,
+        )
+
+        return (
+            txt_data,
+            blocklist_data,
+            allowlist_data,
+            policy_data,
+        )
 
     def test_accepts_matching_outputs(self):
         blocklist = {"ads.example.pl"}
@@ -435,6 +448,121 @@ class TestOutputValidation(unittest.TestCase):
             allowlist,
             *data,
         )
+
+    def test_accepts_matching_combined_policy(self):
+        blocklist = {"ads.example.pl"}
+        allowlist = {"safe.example.net"}
+
+        data = self.make_output_data(blocklist, allowlist)
+
+        validate_outputs(
+            blocklist,
+            allowlist,
+            *data,
+        )
+
+        decoded_policy = msgpack.unpackb(
+            data[3],
+            raw=False,
+        )
+
+        self.assertEqual(
+            decoded_policy,
+            {
+                "blocklist": ["ads.example.pl"],
+                "allowlist": ["safe.example.net"],
+            },
+        )
+
+    def test_rejects_policy_with_incorrect_structure(self):
+        blocklist = {"ads.example.pl"}
+        allowlist = {"safe.example.net"}
+
+        data = self.make_output_data(blocklist, allowlist)
+
+        wrong_policy = msgpack.packb(
+            ["ads.example.pl", "safe.example.net"],
+            use_bin_type=True,
+        )
+
+        with self.assertRaisesRegex(ValueError, "musi być obiektem"):
+            validate_outputs(
+                blocklist,
+                allowlist,
+                data[0],
+                data[1],
+                data[2],
+                wrong_policy,
+            )
+
+    def test_rejects_policy_with_missing_list(self):
+        blocklist = {"ads.example.pl"}
+        allowlist = set()
+
+        data = self.make_output_data(blocklist, allowlist)
+
+        wrong_policy = msgpack.packb(
+            {"blocklist": ["ads.example.pl"]},
+            use_bin_type=True,
+        )
+
+        with self.assertRaisesRegex(ValueError, "nieprawidłową strukturę"):
+            validate_outputs(
+                blocklist,
+                allowlist,
+                data[0],
+                data[1],
+                data[2],
+                wrong_policy,
+            )
+
+    def test_rejects_policy_with_mismatched_domains(self):
+        blocklist = {"ads.example.pl"}
+        allowlist = {"safe.example.net"}
+
+        data = self.make_output_data(blocklist, allowlist)
+
+        wrong_policy = msgpack.packb(
+            {
+                "blocklist": ["wrong.example.pl"],
+                "allowlist": ["safe.example.net"],
+            },
+            use_bin_type=True,
+        )
+
+        with self.assertRaisesRegex(ValueError, "Bloklista w polityce"):
+            validate_outputs(
+                blocklist,
+                allowlist,
+                data[0],
+                data[1],
+                data[2],
+                wrong_policy,
+            )
+
+    def test_rejects_domain_present_in_both_policy_lists(self):
+        blocklist = {"ads.example.pl"}
+        allowlist = {"safe.example.net"}
+
+        data = self.make_output_data(blocklist, allowlist)
+
+        wrong_policy = msgpack.packb(
+            {
+                "blocklist": ["ads.example.pl"],
+                "allowlist": ["ads.example.pl"],
+            },
+            use_bin_type=True,
+        )
+
+        with self.assertRaisesRegex(ValueError, "Polityka zawiera domenę"):
+            validate_outputs(
+                blocklist,
+                allowlist,
+                data[0],
+                data[1],
+                data[2],
+                wrong_policy,
+            )
 
     def test_rejects_incorrect_txt_output(self):
         blocklist = {"ads.example.pl"}
