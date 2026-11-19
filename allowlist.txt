@@ -1,3 +1,2 @@
 github.com
 cloudflare.com
-doh-worker.pjdns.workers.dev
