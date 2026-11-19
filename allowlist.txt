@@ -1,10 +1,7 @@
-# Analityka
-goatcounter.com
-gc.zgo.at
-
 # Infrastruktura (zapobiega błędom w panelach i API)
 github.com
 cloudflare.com
+doh-worker.pjdns.workers.dev
 
 # Aplikacje (Obtainium)
 apps.obtainium.imranr.dev
