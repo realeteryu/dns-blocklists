@@ -12,8 +12,6 @@ CUSTOM_BLOCKLIST_FILE = Path("custom-blocklist.txt")
 
 OUTPUT_DIR = Path("output")
 OUTPUT_TXT = OUTPUT_DIR / "doh_combined.txt"
-OUTPUT_BIN = OUTPUT_DIR / "doh_combined.msgpack"
-OUTPUT_ALLOWLIST_BIN = OUTPUT_DIR / "doh_allowlist.msgpack"
 OUTPUT_POLICY_BIN = OUTPUT_DIR / "doh_policy.msgpack"
 
 MAX_DOMAIN_LENGTH = 253
@@ -425,85 +423,60 @@ def validate_outputs(
     blocklist,
     allowlist,
     txt_data,
-    blocklist_data,
-    allowlist_data,
-    policy_data=None,
+    policy_data,
 ):
     """Sprawdza zgodność wyników przed zapisem."""
 
     decoded_txt = txt_data.decode("utf-8").splitlines()
-
-    decoded_blocklist = msgpack.unpackb(
-        blocklist_data,
-        raw=False,
-    )
-
-    decoded_allowlist = msgpack.unpackb(
-        allowlist_data,
-        raw=False,
-    )
 
     if decoded_txt != sorted(blocklist):
         raise ValueError(
             "TXT nie odpowiada wygenerowanej liście domen."
         )
 
-    if decoded_blocklist != sorted(blocklist):
+    decoded_policy = msgpack.unpackb(
+        policy_data,
+        raw=False,
+    )
+
+    if not isinstance(decoded_policy, dict):
         raise ValueError(
-            "MessagePack bloklisty nie odpowiada TXT."
+            "Polityka MessagePack musi być obiektem."
         )
 
-    if decoded_allowlist != sorted(allowlist):
+    if set(decoded_policy) != {"blocklist", "allowlist"}:
         raise ValueError(
-            "MessagePack allowlisty zawiera niezgodne dane."
+            "Polityka MessagePack ma nieprawidłową strukturę."
         )
 
-    if set(decoded_blocklist) & set(decoded_allowlist):
+    # Najpierw sprawdzamy konflikt wewnątrz polityki.
+    # Dzięki temu błąd strukturalny nie zostanie ukryty
+    # przez późniejsze porównanie zawartości list.
+    if (
+        set(decoded_policy["blocklist"])
+        & set(decoded_policy["allowlist"])
+    ):
         raise ValueError(
-            "Ta sama domena znajduje się w obu wynikach."
+            "Polityka zawiera domenę w obu listach."
         )
 
-    for domain in decoded_blocklist + decoded_allowlist:
+    if decoded_policy["blocklist"] != sorted(blocklist):
+        raise ValueError(
+            "Bloklista w polityce nie odpowiada wynikowi."
+        )
+
+    if decoded_policy["allowlist"] != sorted(allowlist):
+        raise ValueError(
+            "Allowlista w polityce nie odpowiada wynikowi."
+        )
+
+    for domain in (
+        decoded_policy["blocklist"]
+        + decoded_policy["allowlist"]
+    ):
         if normalize_domain(domain) != domain:
             raise ValueError(
                 f"Nieprawidłowa domena w wyniku: {domain}"
-            )
-
-    if policy_data is not None:
-        decoded_policy = msgpack.unpackb(
-            policy_data,
-            raw=False,
-        )
-
-        if not isinstance(decoded_policy, dict):
-            raise ValueError(
-                "Polityka MessagePack musi być obiektem."
-            )
-
-        if set(decoded_policy) != {"blocklist", "allowlist"}:
-            raise ValueError(
-                "Polityka MessagePack ma nieprawidłową strukturę."
-            )
-
-        # Najpierw sprawdzamy konflikt wewnątrz polityki.
-        # Dzięki temu błąd strukturalny nie zostanie ukryty
-        # przez późniejsze porównanie zawartości list.
-        if (
-            set(decoded_policy["blocklist"])
-            & set(decoded_policy["allowlist"])
-        ):
-            raise ValueError(
-                "Polityka zawiera domenę w obu listach."
-            )
-
-        if decoded_policy["blocklist"] != sorted(blocklist):
-            raise ValueError(
-                "Bloklista w polityce nie odpowiada wynikowi."
-            )
-
-        if decoded_policy["allowlist"] != sorted(allowlist):
-            raise ValueError(
-                "Allowlista w polityce nie odpowiada wynikowi."
             )
 
 
@@ -542,16 +515,6 @@ def main():
         "\n".join(sorted_blocklist) + "\n"
     ).encode("utf-8")
 
-    blocklist_data = msgpack.packb(
-        sorted_blocklist,
-        use_bin_type=True,
-    )
-
-    allowlist_data = msgpack.packb(
-        sorted_allowlist,
-        use_bin_type=True,
-    )
-
     policy_data = msgpack.packb(
         {
             "blocklist": sorted_blocklist,
@@ -564,14 +527,10 @@ def main():
         optimized,
         allowlist,
         txt_data,
-        blocklist_data,
-        allowlist_data,
         policy_data,
     )
 
     write_atomic(OUTPUT_TXT, txt_data)
-    write_atomic(OUTPUT_BIN, blocklist_data)
-    write_atomic(OUTPUT_ALLOWLIST_BIN, allowlist_data)
     write_atomic(OUTPUT_POLICY_BIN, policy_data)
 
     print()
@@ -585,8 +544,6 @@ def main():
     print(f"Wyjątki: {len(allowlist)}")
     print()
     print(f"TXT: {OUTPUT_TXT}")
-    print(f"MessagePack: {OUTPUT_BIN}")
-    print(f"Allowlist MessagePack: {OUTPUT_ALLOWLIST_BIN}")
     print(f"Połączona polityka: {OUTPUT_POLICY_BIN}")
     print()
     print("Budowanie zakończone.")
