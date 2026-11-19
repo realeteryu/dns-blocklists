@@ -409,7 +409,7 @@ class TestOutputValidation(unittest.TestCase):
         sorted_allows = sorted(allowlist)
 
         txt_data = (
-            "\\n".join(sorted_blocks) + "\\n"
+            "\n".join(sorted_blocks) + "\\n"
         ).encode("utf-8")
 
         policy_data = msgpack.packb(
@@ -574,7 +574,7 @@ class TestOutputValidation(unittest.TestCase):
             validate_outputs(
                 blocklist,
                 allowlist,
-                b"wrong.example.pl\\n",
+                b"wrong.example.pl\n",
                 policy_data,
             )
 
