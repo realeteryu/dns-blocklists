@@ -409,7 +409,7 @@ class TestOutputValidation(unittest.TestCase):
         sorted_allows = sorted(allowlist)
 
         txt_data = (
-            "\n".join(sorted_blocks) + "\\n"
+            "\n".join(sorted_blocks) + "\n"
         ).encode("utf-8")
 
         policy_data = msgpack.packb(
@@ -587,7 +587,7 @@ class TestOutputValidation(unittest.TestCase):
             allowlist,
         )
 
-        with self.assertRaisesRegex(ValueError, "obu wynikach"):
+        with self.assertRaisesRegex(ValueError, "Polityka zawiera domenę w obu listach"):
             validate_outputs(
                 blocklist,
                 allowlist,
