@@ -409,18 +409,8 @@ class TestOutputValidation(unittest.TestCase):
         sorted_allows = sorted(allowlist)
 
         txt_data = (
-            "\n".join(sorted_blocks) + "\n"
+            "\\n".join(sorted_blocks) + "\\n"
         ).encode("utf-8")
-
-        blocklist_data = msgpack.packb(
-            sorted_blocks,
-            use_bin_type=True,
-        )
-
-        allowlist_data = msgpack.packb(
-            sorted_allows,
-            use_bin_type=True,
-        )
 
         policy_data = msgpack.packb(
             {
@@ -430,39 +420,42 @@ class TestOutputValidation(unittest.TestCase):
             use_bin_type=True,
         )
 
-        return (
-            txt_data,
-            blocklist_data,
-            allowlist_data,
-            policy_data,
-        )
+        return txt_data, policy_data
 
     def test_accepts_matching_outputs(self):
         blocklist = {"ads.example.pl"}
         allowlist = {"safe.example.net"}
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, policy_data = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         validate_outputs(
             blocklist,
             allowlist,
-            *data,
+            txt_data,
+            policy_data,
         )
 
     def test_accepts_matching_combined_policy(self):
         blocklist = {"ads.example.pl"}
         allowlist = {"safe.example.net"}
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, policy_data = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         validate_outputs(
             blocklist,
             allowlist,
-            *data,
+            txt_data,
+            policy_data,
         )
 
         decoded_policy = msgpack.unpackb(
-            data[3],
+            policy_data,
             raw=False,
         )
 
@@ -478,7 +471,10 @@ class TestOutputValidation(unittest.TestCase):
         blocklist = {"ads.example.pl"}
         allowlist = {"safe.example.net"}
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, _ = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         wrong_policy = msgpack.packb(
             ["ads.example.pl", "safe.example.net"],
@@ -489,9 +485,7 @@ class TestOutputValidation(unittest.TestCase):
             validate_outputs(
                 blocklist,
                 allowlist,
-                data[0],
-                data[1],
-                data[2],
+                txt_data,
                 wrong_policy,
             )
 
@@ -499,7 +493,10 @@ class TestOutputValidation(unittest.TestCase):
         blocklist = {"ads.example.pl"}
         allowlist = set()
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, _ = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         wrong_policy = msgpack.packb(
             {"blocklist": ["ads.example.pl"]},
@@ -510,9 +507,7 @@ class TestOutputValidation(unittest.TestCase):
             validate_outputs(
                 blocklist,
                 allowlist,
-                data[0],
-                data[1],
-                data[2],
+                txt_data,
                 wrong_policy,
             )
 
@@ -520,7 +515,10 @@ class TestOutputValidation(unittest.TestCase):
         blocklist = {"ads.example.pl"}
         allowlist = {"safe.example.net"}
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, _ = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         wrong_policy = msgpack.packb(
             {
@@ -534,9 +532,7 @@ class TestOutputValidation(unittest.TestCase):
             validate_outputs(
                 blocklist,
                 allowlist,
-                data[0],
-                data[1],
-                data[2],
+                txt_data,
                 wrong_policy,
             )
 
@@ -544,7 +540,10 @@ class TestOutputValidation(unittest.TestCase):
         blocklist = {"ads.example.pl"}
         allowlist = {"safe.example.net"}
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, _ = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         wrong_policy = msgpack.packb(
             {
@@ -558,9 +557,7 @@ class TestOutputValidation(unittest.TestCase):
             validate_outputs(
                 blocklist,
                 allowlist,
-                data[0],
-                data[1],
-                data[2],
+                txt_data,
                 wrong_policy,
             )
 
@@ -568,81 +565,51 @@ class TestOutputValidation(unittest.TestCase):
         blocklist = {"ads.example.pl"}
         allowlist = set()
 
-        data = self.make_output_data(blocklist, allowlist)
+        _, policy_data = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         with self.assertRaisesRegex(ValueError, "TXT"):
             validate_outputs(
                 blocklist,
                 allowlist,
-                b"wrong.example.pl\n",
-                data[1],
-                data[2],
-            )
-
-    def test_rejects_incorrect_blocklist_messagepack(self):
-        blocklist = {"ads.example.pl"}
-        allowlist = set()
-
-        data = self.make_output_data(blocklist, allowlist)
-
-        wrong_data = msgpack.packb(
-            ["wrong.example.pl"],
-            use_bin_type=True,
-        )
-
-        with self.assertRaisesRegex(ValueError, "MessagePack bloklisty"):
-            validate_outputs(
-                blocklist,
-                allowlist,
-                data[0],
-                wrong_data,
-                data[2],
-            )
-
-    def test_rejects_incorrect_allowlist_messagepack(self):
-        blocklist = {"ads.example.pl"}
-        allowlist = {"safe.example.net"}
-
-        data = self.make_output_data(blocklist, allowlist)
-
-        wrong_data = msgpack.packb(
-            ["other.example.net"],
-            use_bin_type=True,
-        )
-
-        with self.assertRaisesRegex(ValueError, "MessagePack allowlisty"):
-            validate_outputs(
-                blocklist,
-                allowlist,
-                data[0],
-                data[1],
-                wrong_data,
+                b"wrong.example.pl\\n",
+                policy_data,
             )
 
     def test_rejects_domain_present_in_both_outputs(self):
         blocklist = {"ads.example.pl"}
         allowlist = {"ads.example.pl"}
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, policy_data = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         with self.assertRaisesRegex(ValueError, "obu wynikach"):
             validate_outputs(
                 blocklist,
                 allowlist,
-                *data,
+                txt_data,
+                policy_data,
             )
 
     def test_rejects_invalid_domain_in_output(self):
         blocklist = {"invalid domain"}
         allowlist = set()
 
-        data = self.make_output_data(blocklist, allowlist)
+        txt_data, policy_data = self.make_output_data(
+            blocklist,
+            allowlist,
+        )
 
         with self.assertRaisesRegex(ValueError, "Nieprawidłowa domena"):
             validate_outputs(
                 blocklist,
                 allowlist,
-                *data,
+                txt_data,
+                policy_data,
             )
 
 
