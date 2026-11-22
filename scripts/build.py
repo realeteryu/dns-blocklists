@@ -116,7 +116,11 @@ def download_text(url: str) -> str:
     raise BuildError(f"Nie udało się pobrać źródła: {url}")
 
 
-def normalize_domain(value: str) -> str | None:
+def normalize_domain(
+    value: str,
+    *,
+    allow_single_label: bool = False,
+) -> str | None:
     """Normalizuje i sprawdza pojedynczą domenę."""
 
     if not isinstance(value, str):
@@ -145,7 +149,7 @@ def normalize_domain(value: str) -> str | None:
 
     labels = domain.split(".")
 
-    if len(labels) < 2:
+    if len(labels) < 2 and not allow_single_label:
         return None
 
     if any(
@@ -157,7 +161,11 @@ def normalize_domain(value: str) -> str | None:
     return domain
 
 
-def parse_domain_lines(text: str) -> set[str]:
+def parse_domain_lines(
+    text: str,
+    *,
+    allow_single_label: bool = False,
+) -> set[str]:
     """Odczytuje zwykłą listę domen."""
 
     domains = set()
@@ -191,7 +199,10 @@ def parse_domain_lines(text: str) -> set[str]:
             candidates = [parts[0]]
 
         for candidate in candidates:
-            domain = normalize_domain(candidate)
+            domain = normalize_domain(
+                candidate,
+                allow_single_label=allow_single_label,
+            )
 
             if domain:
                 domains.add(domain)
@@ -233,8 +244,7 @@ def parse_hosts(text: str) -> set[str]:
 def parse_rpz(text: str) -> set[str]:
     """Odczytuje domeny blokujące z pliku DNS RPZ."""
 
-    # Najpierw ustalamy origin strefy.
-    # Nie można zakładać dns.name.root:
+    # Najpierw ustalamy origin strefy. Nie można zakładać dns.name.root:
     # rekord SOA musi znajdować się na wierzchołku właściwej strefy.
     origin_match = re.search(
         r"(?im)^\s*\$ORIGIN\s+(\S+)",
@@ -262,8 +272,10 @@ def parse_rpz(text: str) -> set[str]:
 
         if soa_owner == "@":
             # W części poprawnych plików RPZ wierzchołek strefy
-            # jest zapisany jako @, bez jawnego $ORIGIN.
-            # Używamy technicznego origin.
+            # jest zapisany jako @, bez jawnego $ORIGIN. Ponieważ
+            # do wyniku potrzebujemy wyłącznie względnych nazw
+            # właścicieli rekordów, używamy technicznego origin.
+            # Nie próbujemy wyprowadzać origin z MNAME lub RNAME SOA.
             origin_text = "rpz.invalid."
         else:
             origin_text = soa_owner
@@ -444,7 +456,8 @@ def load_custom_domains(path: Path) -> set[str]:
         raise BuildError(f"Brakuje pliku: {path.relative_to(ROOT)}")
 
     return parse_domain_lines(
-        path.read_text(encoding="utf-8-sig")
+        path.read_text(encoding="utf-8-sig"),
+        allow_single_label=True,
     )
 
 
@@ -592,33 +605,17 @@ def build_blocklist() -> None:
 
     print("Sprawdzanie domen względem Public Suffix List...")
 
-    # Własne blokady muszą być poprawne.
-    # Nie pozwalamy ręcznie blokować publicznych sufiksów.
     for domain in custom_blocklist:
-        if is_public_suffix(domain, psl):
+        if "." not in domain and not is_public_suffix(domain, psl):
             raise BuildError(
-                f"Publiczny sufiks nie może być własną blokadą: {domain}"
+                f"Nieprawidłowa domena na własnej liście blokującej: {domain}"
             )
 
-    # Publiczne sufiksy pochodzące z zewnętrznych źródeł
-    # pomijamy, ponieważ ich blokowanie mogłoby odciąć
-    # całą przestrzeń nazw dostawcy hostingu lub DNS.
-    public_suffixes = {
-        domain
-        for domain in collected_domains
-        if is_public_suffix(domain, psl)
-    }
-
-    if public_suffixes:
-        print(
-            "  Pominięto publiczne sufiksy ze źródeł: "
-            f"{len(public_suffixes):,}"
-        )
-
-        for domain in sorted(public_suffixes)[:10]:
-            print(f"    - {domain}")
-
-    collected_domains -= public_suffixes
+    for domain in collected_domains | custom_blocklist:
+        if is_public_suffix(domain, psl):
+            raise BuildError(
+                f"Wykryto publiczny sufiks na liście blokującej: {domain}"
+            )
 
     print("Stosowanie allowlisty...")
 
