@@ -544,8 +544,10 @@ def build_blocklist() -> None:
 
     print("Stosowanie allowlisty...")
 
-    domains = apply_allowlist(collected_domains, allowlist)
-    domains.update(custom_blocklist)
+    # Łączymy domeny ze źródeł z własnymi blokadami.
+    # Następnie stosujemy allowlistę, aby miała najwyższy priorytet.
+    domains = collected_domains | custom_blocklist
+    domains = apply_allowlist(domains, allowlist)
 
     print("Optymalizacja listy...")
 
