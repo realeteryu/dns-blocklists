@@ -605,17 +605,33 @@ def build_blocklist() -> None:
 
     print("Sprawdzanie domen względem Public Suffix List...")
 
+    # Własna lista jest kontrolowana rygorystycznie: błędny wpis
+    # lub publiczny sufiks powinien zatrzymać budowanie.
     for domain in custom_blocklist:
         if "." not in domain and not is_public_suffix(domain, psl):
             raise BuildError(
                 f"Nieprawidłowa domena na własnej liście blokującej: {domain}"
             )
 
-    for domain in collected_domains | custom_blocklist:
         if is_public_suffix(domain, psl):
             raise BuildError(
                 f"Wykryto publiczny sufiks na liście blokującej: {domain}"
             )
+
+    # Zewnętrzne listy mogą zawierać publiczne sufiksy. Pomijamy je,
+    # zamiast przerywać cały build; do wyniku trafiają tylko domeny.
+    external_public_suffixes = {
+        domain
+        for domain in collected_domains
+        if is_public_suffix(domain, psl)
+    }
+
+    if external_public_suffixes:
+        collected_domains.difference_update(external_public_suffixes)
+        print(
+            "  Pominięto publiczne sufiksy ze źródeł zewnętrznych: "
+            f"{len(external_public_suffixes):,}"
+        )
 
     print("Stosowanie allowlisty...")
 
