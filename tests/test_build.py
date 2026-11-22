@@ -567,6 +567,7 @@ class TestPublicSuffixBuildBehavior(unittest.TestCase):
         }
 
         with (
+            patch("scripts.build.ROOT", directory_path),
             patch("scripts.build.OUTPUT_FILE", output_file),
             patch("scripts.build.ALLOWLIST_FILE", allowlist_file),
             patch("scripts.build.CUSTOM_BLOCKLIST_FILE", custom_blocklist_file),
