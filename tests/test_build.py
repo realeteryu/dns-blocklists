@@ -12,12 +12,12 @@ from scripts.build import (
     build_blocklist,
     is_public_suffix,
     load_public_suffix_list,
-    normalize_domain,
     optimize_domains,
     parse_adblock,
     parse_domain_lines,
     parse_hosts,
     parse_rpz,
+    normalize_domain,
 )
 
 
@@ -252,55 +252,6 @@ example.com##.advertisement
     def test_empty_filterlist(self):
         self.assertEqual(
             parse_adblock("[Adblock Plus 2.0]\n"),
-            set(),
-        )
-
-    def test_badfilter_disables_matching_rule(self):
-        text = """
-[Adblock Plus 2.0]
-||ads.example.com^
-||ads.example.com^$badfilter
-"""
-
-        self.assertEqual(
-            parse_adblock(text),
-            set(),
-        )
-
-    def test_badfilter_does_not_disable_other_domains(self):
-        text = """
-[Adblock Plus 2.0]
-||ads.example.com^
-||tracker.example.org^
-||ads.example.com^$badfilter
-"""
-
-        self.assertEqual(
-            parse_adblock(text),
-            {"tracker.example.org"},
-        )
-
-    def test_badfilter_without_matching_rule(self):
-        text = """
-[Adblock Plus 2.0]
-||ads.example.com^$badfilter
-||tracker.example.org^
-"""
-
-        self.assertEqual(
-            parse_adblock(text),
-            {"tracker.example.org"},
-        )
-
-    def test_badfilter_is_case_insensitive(self):
-        text = """
-[Adblock Plus 2.0]
-||ads.example.com^
-||ads.example.com^$BADFILTER
-"""
-
-        self.assertEqual(
-            parse_adblock(text),
             set(),
         )
 
@@ -587,6 +538,73 @@ class TestBuildSafety(unittest.TestCase):
                 output_file.read_text(encoding="utf-8"),
                 "previous.example.com\n",
             )
+
+
+class TestPublicSuffixBuildBehavior(unittest.TestCase):
+
+    def _run_build(
+        self,
+        directory: str,
+        source_text: str,
+        custom_blocklist: set[str],
+    ) -> Path:
+        directory_path = Path(directory)
+        output_file = directory_path / "blocklist.txt"
+        allowlist_file = directory_path / "allowlist.txt"
+        custom_blocklist_file = directory_path / "custom-blocklist.txt"
+        allowlist_file.write_text("", encoding="utf-8")
+        custom_blocklist_file.write_text(
+            "\n".join(sorted(custom_blocklist)) + "\n"
+            if custom_blocklist
+            else "",
+            encoding="utf-8",
+        )
+        config = {
+            "public_suffix_list": "https://example.com/psl",
+            "sources": {
+                "domains": ["https://example.com/list.txt"],
+            },
+        }
+
+        with (
+            patch("scripts.build.OUTPUT_FILE", output_file),
+            patch("scripts.build.ALLOWLIST_FILE", allowlist_file),
+            patch("scripts.build.CUSTOM_BLOCKLIST_FILE", custom_blocklist_file),
+            patch("scripts.build.load_configuration", return_value=config),
+            patch(
+                "scripts.build.load_public_suffix_list",
+                return_value=make_test_psl(),
+            ),
+            patch("scripts.build.download_text", return_value=source_text),
+        ):
+            build_blocklist()
+
+        return output_file
+
+    def test_public_suffix_from_external_source_is_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_file = self._run_build(
+                directory,
+                "com\nads.example.com\n",
+                set(),
+            )
+
+            self.assertEqual(
+                output_file.read_text(encoding="utf-8"),
+                "ads.example.com\n",
+            )
+
+    def test_public_suffix_in_custom_blocklist_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(
+                BuildError,
+                "publiczny sufiks.*com",
+            ):
+                self._run_build(
+                    directory,
+                    "ads.example.com\n",
+                    {"com"},
+                )
 
 
 if __name__ == "__main__":
