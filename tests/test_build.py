@@ -29,6 +29,7 @@ com
 org
 net
 co.uk
+subscribepage.io
 *.ck
 !www.ck
 """
@@ -587,6 +588,19 @@ class TestPublicSuffixBuildBehavior(unittest.TestCase):
             output_file = self._run_build(
                 directory,
                 "com\nads.example.com\n",
+                set(),
+            )
+
+            self.assertEqual(
+                output_file.read_text(encoding="utf-8"),
+                "ads.example.com\n",
+            )
+
+    def test_real_world_public_suffix_from_external_source_is_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_file = self._run_build(
+                directory,
+                "subscribepage.io\nads.example.com\n",
                 set(),
             )
 
