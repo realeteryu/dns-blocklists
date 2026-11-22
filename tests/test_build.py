@@ -255,6 +255,55 @@ example.com##.advertisement
             set(),
         )
 
+    def test_badfilter_disables_matching_rule(self):
+        text = """
+[Adblock Plus 2.0]
+||example.com^
+||example.com^$badfilter
+"""
+
+        self.assertEqual(
+            parse_adblock(text),
+            set(),
+        )
+
+    def test_badfilter_does_not_disable_other_domains(self):
+        text = """
+[Adblock Plus 2.0]
+||example.com^
+||example.com^$badfilter
+||ads.example.org^
+"""
+
+        self.assertEqual(
+            parse_adblock(text),
+            {"ads.example.org"},
+        )
+
+    def test_badfilter_without_matching_rule(self):
+        text = """
+[Adblock Plus 2.0]
+||example.com^$badfilter
+||ads.example.org^
+"""
+
+        self.assertEqual(
+            parse_adblock(text),
+            {"ads.example.org"},
+        )
+
+    def test_badfilter_is_case_insensitive(self):
+        text = """
+[Adblock Plus 2.0]
+||example.com^
+||example.com^$BADFILTER
+"""
+
+        self.assertEqual(
+            parse_adblock(text),
+            set(),
+        )
+
 
 class TestRpzParser(unittest.TestCase):
 
