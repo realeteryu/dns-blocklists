@@ -147,6 +147,15 @@ def normalize_domain(
     if len(domain) > 253:
         return None
 
+    # Adresy IP nie są nazwami domen i nie mogą trafiać
+    # do wynikowej listy DNS.
+    try:
+        ipaddress.ip_address(domain)
+    except ValueError:
+        pass
+    else:
+        return None
+
     labels = domain.split(".")
 
     if len(labels) < 2 and not allow_single_label:
@@ -557,16 +566,12 @@ def build_blocklist() -> None:
     """Pobiera, przetwarza i zapisuje gotową listę."""
 
     config = load_configuration()
-
-    print("Pobieranie Public Suffix List...")
-
-    psl = load_public_suffix_list(
-        config["public_suffix_list"]
-    )
+    psl = load_public_suffix_list(config["public_suffix_list"])
 
     sources = config["sources"]
     collected_domains = set()
     source_count = 0
+    raw_source_lines = 0
 
     parsers = {
         "rpz": parse_rpz,
@@ -578,10 +583,9 @@ def build_blocklist() -> None:
     for source_type, parser in parsers.items():
         for url in sources.get(source_type, []):
             source_count += 1
-            print(f"Pobieranie [{source_type}]: {url}")
-
-            text = download_text(url)
-            parsed = parser(text)
+            source_text = download_text(url)
+            raw_source_lines += len(source_text.splitlines())
+            parsed = parser(source_text)
 
             if not parsed:
                 raise BuildError(
@@ -590,20 +594,11 @@ def build_blocklist() -> None:
 
             collected_domains.update(parsed)
 
-            print(f"  Rozpoznano domen: {len(parsed):,}")
-
     if source_count == 0:
         raise BuildError("Nie skonfigurowano żadnych źródeł.")
 
-    print("Wczytywanie własnych list...")
-
     allowlist = load_custom_domains(ALLOWLIST_FILE)
     custom_blocklist = load_custom_domains(CUSTOM_BLOCKLIST_FILE)
-
-    print(f"Allowlista: {len(allowlist):,}")
-    print(f"Własne blokady: {len(custom_blocklist):,}")
-
-    print("Sprawdzanie domen względem Public Suffix List...")
 
     # Własna lista jest kontrolowana rygorystycznie: błędny wpis
     # lub publiczny sufiks powinien zatrzymać budowanie.
@@ -625,24 +620,18 @@ def build_blocklist() -> None:
         for domain in collected_domains
         if is_public_suffix(domain, psl)
     }
-
-    if external_public_suffixes:
-        collected_domains.difference_update(external_public_suffixes)
-        print(
-            "  Pominięto publiczne sufiksy ze źródeł zewnętrznych: "
-            f"{len(external_public_suffixes):,}"
-        )
-
-    print("Stosowanie allowlisty...")
+    collected_domains.difference_update(external_public_suffixes)
 
     # Łączymy domeny ze źródeł z własnymi blokadami.
     # Następnie stosujemy allowlistę, aby miała najwyższy priorytet.
     domains = collected_domains | custom_blocklist
     domains = apply_allowlist(domains, allowlist)
 
-    print("Optymalizacja listy...")
-
+    # Liczba przed optymalizacją jest podstawą do obliczenia liczby
+    # redundantnych subdomen usuniętych przez agregację.
+    domains_before_optimization = len(domains)
     domains = optimize_domains(domains)
+    redundant_subdomains_removed = domains_before_optimization - len(domains)
 
     if not domains:
         raise BuildError(
@@ -677,9 +666,16 @@ def build_blocklist() -> None:
             temporary_path.unlink()
 
     print()
-    print("Budowanie zakończone pomyślnie.")
-    print(f"Liczba domen: {len(domains):,}")
+    print("Podsumowanie budowania:")
+    print(f"Surowe linie ze wszystkich źródeł: {raw_source_lines:,}")
+    print(
+        "Unikalne domeny po deduplikacji i filtrach: "
+        f"{domains_before_optimization:,}"
+    )
+    print(f"Usunięte redundantne subdomeny: {redundant_subdomains_removed:,}")
+    print(f"Gotowa lista: {len(domains):,}")
     print(f"Plik wynikowy: {OUTPUT_FILE.relative_to(ROOT)}")
+
 
 
 def main() -> int:
