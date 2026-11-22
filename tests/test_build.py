@@ -54,6 +54,12 @@ class TestNormalizeDomain(unittest.TestCase):
             "example.com",
         )
 
+    def test_reject_ipv4_address(self):
+        self.assertIsNone(normalize_domain("192.0.2.1"))
+
+    def test_reject_ipv6_address(self):
+        self.assertIsNone(normalize_domain("2001:db8::1"))
+
     def test_wildcard(self):
         self.assertEqual(
             normalize_domain("*.example.com"),
@@ -126,6 +132,14 @@ ads.example.org # inline comment
             parse_domain_lines("||ads.example.com^\n"),
             {"ads.example.com"},
         )
+
+    def test_standalone_ip_addresses_are_rejected(self):
+        text = """
+192.0.2.1
+2001:db8::1
+ads.example.com
+"""
+        self.assertEqual(parse_domain_lines(text), {"ads.example.com"})
 
     def test_duplicate_domains(self):
         text = """
