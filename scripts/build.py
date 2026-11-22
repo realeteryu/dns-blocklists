@@ -41,8 +41,8 @@ ADBLOCK_DOMAIN_PATTERN = re.compile(
     r"^\|\|([a-zA-Z0-9.-]+)\^$"
 )
 
-DOMAIN_PATTERN = re.compile(
-    r"^[a-zA-Z0-9.-]+$"
+DOMAIN_LABEL_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
 )
 
 
@@ -145,15 +145,38 @@ def normalize_domain(value: str) -> str | None:
     if len(labels) < 2:
         return None
 
-    for label in labels:
-        if (
-            not label
-            or len(label) > 63
-            or label.startswith("-")
-            or label.endswith("-")
-            or not re.fullmatch(r"[a-z0-9-]+", label)
-        ):
-            return None
+    if any(
+        not DOMAIN_LABEL_PATTERN.fullmatch(label)
+        for label in labels
+    ):
+        return None
+
+    return domain
+
+
+def normalize_psl_rule(value: str) -> str | None:
+    """Normalizuje regułę PSL, dopuszczając pojedyncze etykiety."""
+
+    if not isinstance(value, str):
+        return None
+
+    domain = value.strip().lower().rstrip(".")
+
+    if not domain or len(domain) > 253:
+        return None
+
+    try:
+        domain = domain.encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+
+    labels = domain.split(".")
+
+    if any(
+        not DOMAIN_LABEL_PATTERN.fullmatch(label)
+        for label in labels
+    ):
+        return None
 
     return domain
 
@@ -174,15 +197,12 @@ def parse_domain_lines(text: str) -> set[str]:
         if not line:
             continue
 
-        # Obsługa reguł w postaci ||example.com^
         if line.startswith("||") and line.endswith("^"):
             line = line[2:-1]
 
-        # Obsługa wpisów z wildcardem.
         if line.startswith("*."):
             line = line[2:]
 
-        # Obsługa plików zawierających wpisy hosts.
         parts = line.split()
 
         if len(parts) >= 2:
@@ -257,9 +277,7 @@ def parse_rpz(text: str) -> set[str]:
             break
 
     if zone_origin is None:
-        raise BuildError(
-            "Plik RPZ nie zawiera rekordu SOA."
-        )
+        raise BuildError("Plik RPZ nie zawiera rekordu SOA.")
 
     domains = set()
 
@@ -276,14 +294,10 @@ def parse_rpz(text: str) -> set[str]:
         if not owner or owner == "@":
             continue
 
-        blocked = False
-
-        for record in rdataset:
-            target = record.target.to_text().lower()
-
-            if target in BLOCKING_RPZ_TARGETS:
-                blocked = True
-                break
+        blocked = any(
+            record.target.to_text().lower() in BLOCKING_RPZ_TARGETS
+            for record in rdataset
+        )
 
         if not blocked:
             continue
@@ -340,7 +354,9 @@ def parse_adblock(text: str) -> set[str]:
     return domains
 
 
-def load_public_suffix_list(url: str) -> tuple[set[str], set[str], set[str]]:
+def load_public_suffix_list(
+    url: str,
+) -> tuple[set[str], set[str], set[str]]:
     """Pobiera i odczytuje reguły Public Suffix List."""
 
     text = download_text(url)
@@ -363,7 +379,7 @@ def load_public_suffix_list(url: str) -> tuple[set[str], set[str], set[str]]:
         elif wildcard:
             line = line[2:]
 
-        domain = normalize_domain(line)
+        domain = normalize_psl_rule(line)
 
         if not domain:
             continue
@@ -449,10 +465,7 @@ def apply_allowlist(
 
 
 def optimize_domains(domains: set[str]) -> set[str]:
-    """
-    Usuwa subdomeny, jeśli ich domena nadrzędna
-    znajduje się już na liście.
-    """
+    """Usuwa subdomeny, jeśli ich domena nadrzędna jest na liście."""
 
     optimized = set()
 
@@ -463,8 +476,7 @@ def optimize_domains(domains: set[str]) -> set[str]:
         labels = domain.split(".")
 
         has_parent = any(
-            ".".join(labels[index:])
-            in optimized
+            ".".join(labels[index:]) in optimized
             for index in range(1, len(labels))
         )
 
@@ -514,10 +526,15 @@ def load_configuration() -> dict:
             )
 
         for url in entries:
-            if not isinstance(url, str):
+            if not isinstance(url, str) or not url.startswith("https://"):
                 raise BuildError(
                     f"Nieprawidłowy adres URL w sekcji {source_type}."
                 )
+
+    if not suffix_url.startswith("https://"):
+        raise BuildError(
+            "Adres Public Suffix List musi używać HTTPS."
+        )
 
     return config
 
@@ -545,9 +562,7 @@ def build_blocklist() -> None:
     }
 
     for source_type, parser in parsers.items():
-        urls = sources.get(source_type, [])
-
-        for url in urls:
+        for url in sources.get(source_type, []):
             source_count += 1
             print(f"Pobieranie [{source_type}]: {url}")
 
@@ -561,9 +576,7 @@ def build_blocklist() -> None:
 
             collected_domains.update(parsed)
 
-            print(
-                f"  Rozpoznano domen: {len(parsed):,}"
-            )
+            print(f"  Rozpoznano domen: {len(parsed):,}")
 
     if source_count == 0:
         raise BuildError("Nie skonfigurowano żadnych źródeł.")
@@ -571,9 +584,7 @@ def build_blocklist() -> None:
     print("Wczytywanie własnych list...")
 
     allowlist = load_custom_domains(ALLOWLIST_FILE)
-    custom_blocklist = load_custom_domains(
-        CUSTOM_BLOCKLIST_FILE
-    )
+    custom_blocklist = load_custom_domains(CUSTOM_BLOCKLIST_FILE)
 
     print(f"Allowlista: {len(allowlist):,}")
     print(f"Własne blokady: {len(custom_blocklist):,}")
@@ -588,12 +599,7 @@ def build_blocklist() -> None:
 
     print("Stosowanie allowlisty...")
 
-    domains = apply_allowlist(
-        collected_domains,
-        allowlist,
-    )
-
-    # Własna lista blokująca jest dodawana po allowliście.
+    domains = apply_allowlist(collected_domains, allowlist)
     domains.update(custom_blocklist)
 
     print("Optymalizacja listy...")
@@ -607,10 +613,7 @@ def build_blocklist() -> None:
 
     output = "\n".join(sorted(domains)) + "\n"
 
-    OUTPUT_FILE.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     temporary_path = None
 
@@ -651,10 +654,7 @@ def main() -> int:
         return 1
 
     except Exception as error:
-        print(
-            f"NIEOCZEKIWANY BŁĄD: {error}",
-            file=sys.stderr,
-        )
+        print(f"NIEOCZEKIWANY BŁĄD: {error}", file=sys.stderr)
         return 1
 
 
