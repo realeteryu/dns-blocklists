@@ -39,7 +39,8 @@ BLOCKING_RPZ_TARGETS = {
 }
 
 ADBLOCK_DOMAIN_PATTERN = re.compile(
-    r"^\|\|([a-zA-Z0-9.-]+)\^$"
+    r"^\|\|([a-zA-Z0-9.-]+)\^(\$badfilter)?$",
+    re.IGNORECASE,
 )
 
 DOMAIN_LABEL_PATTERN = re.compile(
@@ -303,14 +304,18 @@ def parse_rpz(text: str) -> set[str]:
 
 def parse_adblock(text: str) -> set[str]:
     """
-    Odczytuje wyłącznie proste reguły blokowania całej domeny.
+    Odczytuje proste reguły blokowania całej domeny.
+
+    Obsługuje $badfilter, który wyłącza odpowiadającą mu
+    prostą regułę blokującą.
 
     Pomija wyjątki, reguły kosmetyczne, wyrażenia regularne,
     reguły URL i inne konstrukcje, których nie da się
     bezpiecznie przekształcić w blokadę DNS.
     """
 
-    domains = set()
+    blocked_domains = set()
+    disabled_domains = set()
 
     try:
         filters = parse_filterlist(io.StringIO(text))
@@ -331,15 +336,20 @@ def parse_adblock(text: str) -> set[str]:
 
             domain = normalize_domain(match.group(1))
 
-            if domain:
-                domains.add(domain)
+            if not domain:
+                continue
+
+            if match.group(2):
+                disabled_domains.add(domain)
+            else:
+                blocked_domains.add(domain)
 
     except Exception as error:
         raise BuildError(
             f"Nie udało się odczytać listy AdBlock: {error}"
         ) from error
 
-    return domains
+    return blocked_domains - disabled_domains
 
 
 def load_public_suffix_list(url: str) -> PublicSuffixList:
