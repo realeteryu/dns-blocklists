@@ -233,10 +233,46 @@ def parse_hosts(text: str) -> set[str]:
 def parse_rpz(text: str) -> set[str]:
     """Odczytuje domeny blokujące z pliku DNS RPZ."""
 
+    # Najpierw ustalamy origin strefy. Nie można zakładać dns.name.root:
+    # rekord SOA musi znajdować się na wierzchołku właściwej strefy.
+    origin_match = re.search(
+        r"(?im)^\\s*\\$ORIGIN\\s+(\\S+)",
+        text,
+    )
+
+    if origin_match:
+        origin_text = origin_match.group(1)
+    else:
+        # W plikach bez $ORIGIN nazwa właściciela rekordu SOA
+        # może wskazać wierzchołek strefy.
+        soa_match = re.search(
+            r"(?im)^\\s*(\\S+)\\s+(?:(?:\\d+)\\s+)?"
+            r"(?:(?:IN|CH|HS)\\s+)?SOA\\b",
+            text,
+        )
+
+        if not soa_match or soa_match.group(1) == "@":
+            raise BuildError(
+                "Nie można ustalić origin strefy RPZ: "
+                "brakuje dyrektywy $ORIGIN lub jawnej nazwy właściciela SOA."
+            )
+
+        origin_text = soa_match.group(1)
+
+    try:
+        origin = dns.name.from_text(
+            origin_text,
+            origin=dns.name.root,
+        )
+    except Exception as error:
+        raise BuildError(
+            f"Nieprawidłowy origin strefy RPZ: {origin_text}"
+        ) from error
+
     try:
         zone = dns.zone.from_text(
             text,
-            origin=dns.name.root,
+            origin=origin,
             relativize=True,
             check_origin=False,
             allow_include=False,
