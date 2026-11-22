@@ -233,7 +233,8 @@ def parse_hosts(text: str) -> set[str]:
 def parse_rpz(text: str) -> set[str]:
     """Odczytuje domeny blokujące z pliku DNS RPZ."""
 
-    # Najpierw ustalamy origin strefy. Nie można zakładać dns.name.root:
+    # Najpierw ustalamy origin strefy.
+    # Nie można zakładać dns.name.root:
     # rekord SOA musi znajdować się na wierzchołku właściwej strefy.
     origin_match = re.search(
         r"(?im)^\s*\$ORIGIN\s+(\S+)",
@@ -261,10 +262,8 @@ def parse_rpz(text: str) -> set[str]:
 
         if soa_owner == "@":
             # W części poprawnych plików RPZ wierzchołek strefy
-            # jest zapisany jako @, bez jawnego $ORIGIN. Ponieważ
-            # do wyniku potrzebujemy wyłącznie względnych nazw
-            # właścicieli rekordów, używamy technicznego origin.
-            # Nie próbujemy wyprowadzać origin z MNAME lub RNAME SOA.
+            # jest zapisany jako @, bez jawnego $ORIGIN.
+            # Używamy technicznego origin.
             origin_text = "rpz.invalid."
         else:
             origin_text = soa_owner
@@ -593,11 +592,33 @@ def build_blocklist() -> None:
 
     print("Sprawdzanie domen względem Public Suffix List...")
 
-    for domain in collected_domains | custom_blocklist:
+    # Własne blokady muszą być poprawne.
+    # Nie pozwalamy ręcznie blokować publicznych sufiksów.
+    for domain in custom_blocklist:
         if is_public_suffix(domain, psl):
             raise BuildError(
-                f"Wykryto publiczny sufiks na liście blokującej: {domain}"
+                f"Publiczny sufiks nie może być własną blokadą: {domain}"
             )
+
+    # Publiczne sufiksy pochodzące z zewnętrznych źródeł
+    # pomijamy, ponieważ ich blokowanie mogłoby odciąć
+    # całą przestrzeń nazw dostawcy hostingu lub DNS.
+    public_suffixes = {
+        domain
+        for domain in collected_domains
+        if is_public_suffix(domain, psl)
+    }
+
+    if public_suffixes:
+        print(
+            "  Pominięto publiczne sufiksy ze źródeł: "
+            f"{len(public_suffixes):,}"
+        )
+
+        for domain in sorted(public_suffixes)[:10]:
+            print(f"    - {domain}")
+
+    collected_domains -= public_suffixes
 
     print("Stosowanie allowlisty...")
 
