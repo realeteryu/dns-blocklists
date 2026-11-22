@@ -147,15 +147,6 @@ def normalize_domain(
     if len(domain) > 253:
         return None
 
-    # Adresy IP nie są nazwami domen i nie mogą trafiać
-    # do wynikowej listy DNS.
-    try:
-        ipaddress.ip_address(domain)
-    except ValueError:
-        pass
-    else:
-        return None
-
     labels = domain.split(".")
 
     if len(labels) < 2 and not allow_single_label:
