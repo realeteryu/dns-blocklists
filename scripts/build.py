@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import dns.name
 import dns.rdatatype
 import dns.zone
 import yaml
@@ -235,7 +236,7 @@ def parse_rpz(text: str) -> set[str]:
     try:
         zone = dns.zone.from_text(
             text,
-            origin=None,
+            origin=dns.name.root,
             relativize=True,
             check_origin=False,
             allow_include=False,
