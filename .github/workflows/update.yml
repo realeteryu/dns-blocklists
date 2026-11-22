@@ -27,24 +27,21 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
-      - name: Generate or update uv.lock
-        run: uv lock
-
       - name: Install dependencies
         run: uv sync --locked
 
       - name: Run tests
-        run: uv run python -m unittest discover -s tests -v
+        run: uv run --locked python -m unittest discover -s tests -v
 
       - name: Build blocklist
-        run: uv run python scripts/build.py
+        run: uv run --locked python scripts/build.py
 
-      - name: Commit updated files
+      - name: Commit updated blocklist
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add uv.lock output/blocklist.txt
+          git add output/blocklist.txt
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
