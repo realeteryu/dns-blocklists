@@ -251,13 +251,23 @@ def parse_rpz(text: str) -> set[str]:
             text,
         )
 
-        if not soa_match or soa_match.group(1) == "@":
+        if not soa_match:
             raise BuildError(
                 "Nie można ustalić origin strefy RPZ: "
-                "brakuje dyrektywy $ORIGIN lub jawnej nazwy właściciela SOA."
+                "brakuje dyrektywy $ORIGIN i rekordu SOA."
             )
 
-        origin_text = soa_match.group(1)
+        soa_owner = soa_match.group(1)
+
+        if soa_owner == "@":
+            # W części poprawnych plików RPZ wierzchołek strefy
+            # jest zapisany jako @, bez jawnego $ORIGIN. Ponieważ
+            # do wyniku potrzebujemy wyłącznie względnych nazw
+            # właścicieli rekordów, używamy technicznego origin.
+            # Nie próbujemy wyprowadzać origin z MNAME lub RNAME SOA.
+            origin_text = "rpz.invalid."
+        else:
+            origin_text = soa_owner
 
     try:
         origin = dns.name.from_text(
