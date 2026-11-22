@@ -680,7 +680,7 @@ def build_blocklist(*, show_progress: bool = False) -> None:
             "Wynikowa lista jest pusta. Przerwano zapis."
         )
 
-    output = "\\n".join(sorted(domains)) + "\\n"
+    output = "\n".join(sorted(domains)) + "\n"
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -690,7 +690,7 @@ def build_blocklist(*, show_progress: bool = False) -> None:
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
-            newline="\\n",
+            newline="\n",
             dir=OUTPUT_FILE.parent,
             prefix=".blocklist-",
             suffix=".tmp",
