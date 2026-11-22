@@ -236,7 +236,7 @@ def parse_rpz(text: str) -> set[str]:
     # Najpierw ustalamy origin strefy. Nie można zakładać dns.name.root:
     # rekord SOA musi znajdować się na wierzchołku właściwej strefy.
     origin_match = re.search(
-        r"(?im)^\\s*\\$ORIGIN\\s+(\\S+)",
+        r"(?im)^\s*\$ORIGIN\s+(\S+)",
         text,
     )
 
@@ -246,8 +246,8 @@ def parse_rpz(text: str) -> set[str]:
         # W plikach bez $ORIGIN nazwa właściciela rekordu SOA
         # może wskazać wierzchołek strefy.
         soa_match = re.search(
-            r"(?im)^\\s*(\\S+)\\s+(?:(?:\\d+)\\s+)?"
-            r"(?:(?:IN|CH|HS)\\s+)?SOA\\b",
+            r"(?im)^\s*(\S+)\s+(?:(?:\d+)\s+)?"
+            r"(?:(?:IN|CH|HS)\s+)?SOA\b",
             text,
         )
 
