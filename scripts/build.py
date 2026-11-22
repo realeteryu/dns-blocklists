@@ -15,6 +15,7 @@ import dns.rdatatype
 import dns.zone
 import yaml
 from abp.filters import parse_filterlist
+from publicsuffix2 import PublicSuffixList
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,11 +31,11 @@ MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024
 DOWNLOAD_ATTEMPTS = 3
 
 BLOCKING_RPZ_TARGETS = {
-    ".",
-    "rpz-drop.",
-    "rpz-nxdomain.",
-    "rpz-nodata.",
-    "rpz-tcp-only.",
+    "",
+    "rpz-drop",
+    "rpz-nxdomain",
+    "rpz-nodata",
+    "rpz-tcp-only",
 }
 
 ADBLOCK_DOMAIN_PATTERN = re.compile(
@@ -154,33 +155,6 @@ def normalize_domain(value: str) -> str | None:
     return domain
 
 
-def normalize_psl_rule(value: str) -> str | None:
-    """Normalizuje regułę PSL, dopuszczając pojedyncze etykiety."""
-
-    if not isinstance(value, str):
-        return None
-
-    domain = value.strip().lower().rstrip(".")
-
-    if not domain or len(domain) > 253:
-        return None
-
-    try:
-        domain = domain.encode("idna").decode("ascii")
-    except UnicodeError:
-        return None
-
-    labels = domain.split(".")
-
-    if any(
-        not DOMAIN_LABEL_PATTERN.fullmatch(label)
-        for label in labels
-    ):
-        return None
-
-    return domain
-
-
 def parse_domain_lines(text: str) -> set[str]:
     """Odczytuje zwykłą listę domen."""
 
@@ -260,23 +234,25 @@ def parse_rpz(text: str) -> set[str]:
     try:
         zone = dns.zone.from_text(
             text,
-            origin=".",
-            relativize=False,
+            origin=None,
+            relativize=True,
             check_origin=False,
+            allow_include=False,
         )
     except Exception as error:
         raise BuildError(
             f"Nie udało się odczytać strefy RPZ: {error}"
         ) from error
 
-    zone_origin = None
+    if zone.origin is None:
+        raise BuildError("Nie można ustalić origin strefy RPZ.")
 
-    for name, rdataset in zone.iterate_rdatasets():
-        if rdataset.rdtype == dns.rdatatype.SOA:
-            zone_origin = name
-            break
+    has_soa = any(
+        rdataset.rdtype == dns.rdatatype.SOA
+        for _, rdataset in zone.iterate_rdatasets()
+    )
 
-    if zone_origin is None:
+    if not has_soa:
         raise BuildError("Plik RPZ nie zawiera rekordu SOA.")
 
     domains = set()
@@ -285,25 +261,37 @@ def parse_rpz(text: str) -> set[str]:
         if rdataset.rdtype != dns.rdatatype.CNAME:
             continue
 
-        if not name.is_subdomain(zone_origin):
-            continue
+        if name.is_absolute():
+            if not name.is_subdomain(zone.origin):
+                continue
 
-        relative_name = name.relativize(zone_origin)
+            relative_name = name.relativize(zone.origin)
+        else:
+            relative_name = name
+
         owner = relative_name.to_text().rstrip(".")
 
         if not owner or owner == "@":
             continue
 
+        labels = owner.split(".")
+
+        if any(label.startswith("rpz-") for label in labels):
+            continue
+
+        # Reguły wildcard pomijamy, ponieważ nie oznaczają
+        # bezpiecznie blokady całej domeny nadrzędnej.
+        if owner.startswith("*."):
+            continue
+
         blocked = any(
-            record.target.to_text().lower() in BLOCKING_RPZ_TARGETS
+            record.target.to_text().lower().rstrip(".")
+            in BLOCKING_RPZ_TARGETS
             for record in rdataset
         )
 
         if not blocked:
             continue
-
-        if owner.startswith("*."):
-            owner = owner[2:]
 
         domain = normalize_domain(owner)
 
@@ -354,86 +342,43 @@ def parse_adblock(text: str) -> set[str]:
     return domains
 
 
-def load_public_suffix_list(
-    url: str,
-) -> tuple[set[str], set[str], set[str]]:
-    """Pobiera i odczytuje reguły Public Suffix List."""
+def load_public_suffix_list(url: str) -> PublicSuffixList:
+    """Pobiera i ładuje aktualną Public Suffix List."""
 
     text = download_text(url)
 
-    exact_rules = set()
-    wildcard_rules = set()
-    exception_rules = set()
+    try:
+        psl = PublicSuffixList(
+            io.StringIO(text),
+            idna=True,
+        )
+    except Exception as error:
+        raise BuildError(
+            f"Nie udało się odczytać Public Suffix List: {error}"
+        ) from error
 
-    for line in text.splitlines():
-        line = line.strip()
-
-        if not line or line.startswith("//"):
-            continue
-
-        exception = line.startswith("!")
-        wildcard = line.startswith("*.")
-
-        if exception:
-            line = line[1:]
-        elif wildcard:
-            line = line[2:]
-
-        domain = normalize_psl_rule(line)
-
-        if not domain:
-            continue
-
-        if exception:
-            exception_rules.add(domain)
-        elif wildcard:
-            wildcard_rules.add(domain)
-        else:
-            exact_rules.add(domain)
-
-    if not exact_rules:
+    if not psl.tlds:
         raise BuildError(
             "Public Suffix List jest pusta lub nieprawidłowa."
         )
 
-    return exact_rules, wildcard_rules, exception_rules
+    return psl
 
 
 def is_public_suffix(
     domain: str,
-    rules: tuple[set[str], set[str], set[str]],
+    psl: PublicSuffixList,
 ) -> bool:
     """Sprawdza, czy domena sama jest publicznym sufiksem."""
 
-    exact_rules, wildcard_rules, exception_rules = rules
-    labels = domain.split(".")
+    try:
+        suffix = psl.get_tld(domain, strict=True)
+    except Exception as error:
+        raise BuildError(
+            f"Błąd sprawdzania Public Suffix List dla {domain}: {error}"
+        ) from error
 
-    public_suffix_length = 1
-
-    for index in range(len(labels)):
-        candidate = ".".join(labels[index:])
-        candidate_length = len(labels) - index
-
-        if candidate in exception_rules:
-            public_suffix_length = candidate_length - 1
-            break
-
-        if candidate in exact_rules:
-            public_suffix_length = max(
-                public_suffix_length,
-                candidate_length,
-            )
-
-        if index + 1 < len(labels):
-            wildcard_base = ".".join(labels[index + 1:])
-
-            if wildcard_base in wildcard_rules:
-                public_suffix_length = max(
-                    public_suffix_length,
-                    candidate_length,
-                )
-
-    return len(labels) == public_suffix_length
+    return suffix is not None and suffix.lower() == domain.lower()
 
 
 def load_custom_domains(path: Path) -> set[str]:
@@ -517,6 +462,11 @@ def load_configuration() -> dict:
             "Brakuje sekcji sources w sources.yaml."
         )
 
+    if not suffix_url.startswith("https://"):
+        raise BuildError(
+            "Adres Public Suffix List musi używać HTTPS."
+        )
+
     for source_type in ("rpz", "hosts", "domains", "adblock"):
         entries = sources.get(source_type, [])
 
@@ -531,11 +481,6 @@ def load_configuration() -> dict:
                     f"Nieprawidłowy adres URL w sekcji {source_type}."
                 )
 
-    if not suffix_url.startswith("https://"):
-        raise BuildError(
-            "Adres Public Suffix List musi używać HTTPS."
-        )
-
     return config
 
 
@@ -546,7 +491,7 @@ def build_blocklist() -> None:
 
     print("Pobieranie Public Suffix List...")
 
-    suffix_rules = load_public_suffix_list(
+    psl = load_public_suffix_list(
         config["public_suffix_list"]
     )
 
@@ -592,7 +537,7 @@ def build_blocklist() -> None:
     print("Sprawdzanie domen względem Public Suffix List...")
 
     for domain in collected_domains | custom_blocklist:
-        if is_public_suffix(domain, suffix_rules):
+        if is_public_suffix(domain, psl):
             raise BuildError(
                 f"Wykryto publiczny sufiks na liście blokującej: {domain}"
             )
