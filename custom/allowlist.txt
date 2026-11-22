@@ -1,0 +1,2 @@
+# Domeny z tej listy wraz ze wszystkimi subdomenami są wykluczane z blocklist.txt.
+# example.com
