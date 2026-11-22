@@ -12,12 +12,12 @@ from scripts.build import (
     build_blocklist,
     is_public_suffix,
     load_public_suffix_list,
+    normalize_domain,
     optimize_domains,
     parse_adblock,
     parse_domain_lines,
     parse_hosts,
     parse_rpz,
-    normalize_domain,
 )
 
 
@@ -258,8 +258,8 @@ example.com##.advertisement
     def test_badfilter_disables_matching_rule(self):
         text = """
 [Adblock Plus 2.0]
-||example.com^
-||example.com^$badfilter
+||ads.example.com^
+||ads.example.com^$badfilter
 """
 
         self.assertEqual(
@@ -270,33 +270,33 @@ example.com##.advertisement
     def test_badfilter_does_not_disable_other_domains(self):
         text = """
 [Adblock Plus 2.0]
-||example.com^
-||example.com^$badfilter
-||ads.example.org^
+||ads.example.com^
+||tracker.example.org^
+||ads.example.com^$badfilter
 """
 
         self.assertEqual(
             parse_adblock(text),
-            {"ads.example.org"},
+            {"tracker.example.org"},
         )
 
     def test_badfilter_without_matching_rule(self):
         text = """
 [Adblock Plus 2.0]
-||example.com^$badfilter
-||ads.example.org^
+||ads.example.com^$badfilter
+||tracker.example.org^
 """
 
         self.assertEqual(
             parse_adblock(text),
-            {"ads.example.org"},
+            {"tracker.example.org"},
         )
 
     def test_badfilter_is_case_insensitive(self):
         text = """
 [Adblock Plus 2.0]
-||example.com^
-||example.com^$BADFILTER
+||ads.example.com^
+||ads.example.com^$BADFILTER
 """
 
         self.assertEqual(
