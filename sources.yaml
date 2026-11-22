@@ -1,14 +1,14 @@
-public_suffix_list: https://raw.githubusercontent.com/publicsuffix/list/refs/heads/main/public_suffix_list.dat
+public_suffix_list: https://publicsuffix.org/list/public_suffix_list.dat
 
 sources:
   rpz:
     - https://small.oisd.nl/rpz
 
   hosts:
-    - https://v.firebog.net/hosts/Easyprivacy.txt
     - https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/refs/heads/master/polish-pihole-filters/hostfile.txt
 
   domains:
+    - https://v.firebog.net/hosts/Easyprivacy.txt
     - https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.wildcards
     - https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/wildcard/multi-onlydomains.txt
     - https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
