@@ -562,15 +562,27 @@ def load_configuration() -> dict:
     return config
 
 
-def build_blocklist() -> None:
+def build_blocklist(*, show_progress: bool = False) -> None:
     """Pobiera, przetwarza i zapisuje gotową listę."""
 
     config = load_configuration()
-    psl = load_public_suffix_list(config["public_suffix_list"])
+
+    if show_progress:
+        print("Pobieranie źródeł:")
+
+    psl_url = config["public_suffix_list"]
+    try:
+        psl = load_public_suffix_list(psl_url)
+    except BuildError as error:
+        if show_progress:
+            print(f"[BŁĄD] [PSL] {psl_url} — {error}", file=sys.stderr)
+        raise
+
+    if show_progress:
+        print(f"[OK] [PSL] {psl_url} — pobrano i załadowano")
 
     sources = config["sources"]
     collected_domains = set()
-    source_count = 0
     raw_source_lines = 0
 
     parsers = {
@@ -580,9 +592,20 @@ def build_blocklist() -> None:
         "adblock": parse_adblock,
     }
 
-    for source_type, parser in parsers.items():
-        for url in sources.get(source_type, []):
-            source_count += 1
+    source_jobs = [
+        (source_type, url)
+        for source_type, parser in parsers.items()
+        for url in sources.get(source_type, [])
+    ]
+    total_sources = len(source_jobs)
+
+    if total_sources == 0:
+        raise BuildError("Nie skonfigurowano żadnych źródeł.")
+
+    for index, (source_type, url) in enumerate(source_jobs, start=1):
+        parser = parsers[source_type]
+
+        try:
             source_text = download_text(url)
             raw_source_lines += len(source_text.splitlines())
             parsed = parser(source_text)
@@ -591,11 +614,30 @@ def build_blocklist() -> None:
                 raise BuildError(
                     f"Źródło nie zawiera rozpoznanych domen: {url}"
                 )
+        except BuildError as error:
+            if show_progress:
+                print(
+                    f"[{index}/{total_sources}] [BŁĄD] "
+                    f"[{source_type}] {url} — {error}",
+                    file=sys.stderr,
+                )
+            raise
+        except Exception as error:
+            if show_progress:
+                print(
+                    f"[{index}/{total_sources}] [BŁĄD] "
+                    f"[{source_type}] {url} — {error}",
+                    file=sys.stderr,
+                )
+            raise
 
-            collected_domains.update(parsed)
+        collected_domains.update(parsed)
 
-    if source_count == 0:
-        raise BuildError("Nie skonfigurowano żadnych źródeł.")
+        if show_progress:
+            print(
+                f"[{index}/{total_sources}] [OK] [{source_type}] {url} "
+                f"— pobrano, rozpoznano {len(parsed):,} domen"
+            )
 
     allowlist = load_custom_domains(ALLOWLIST_FILE)
     custom_blocklist = load_custom_domains(CUSTOM_BLOCKLIST_FILE)
@@ -638,7 +680,7 @@ def build_blocklist() -> None:
             "Wynikowa lista jest pusta. Przerwano zapis."
         )
 
-    output = "\n".join(sorted(domains)) + "\n"
+    output = "\\n".join(sorted(domains)) + "\\n"
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -648,7 +690,7 @@ def build_blocklist() -> None:
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
-            newline="\n",
+            newline="\\n",
             dir=OUTPUT_FILE.parent,
             prefix=".blocklist-",
             suffix=".tmp",
@@ -665,22 +707,22 @@ def build_blocklist() -> None:
         if temporary_path and temporary_path.exists():
             temporary_path.unlink()
 
-    print()
-    print("Podsumowanie budowania:")
-    print(f"Surowe linie ze wszystkich źródeł: {raw_source_lines:,}")
-    print(
-        "Unikalne domeny po deduplikacji i filtrach: "
-        f"{domains_before_optimization:,}"
-    )
-    print(f"Usunięte redundantne subdomeny: {redundant_subdomains_removed:,}")
-    print(f"Gotowa lista: {len(domains):,}")
-    print(f"Plik wynikowy: {OUTPUT_FILE.relative_to(ROOT)}")
-
+    if show_progress:
+        print()
+        print("Podsumowanie budowania:")
+        print(f"Surowe linie ze wszystkich źródeł: {raw_source_lines:,}")
+        print(
+            "Unikalne domeny po deduplikacji i filtrach: "
+            f"{domains_before_optimization:,}"
+        )
+        print(f"Usunięte redundantne subdomeny: {redundant_subdomains_removed:,}")
+        print(f"Gotowa lista: {len(domains):,}")
+        print(f"Plik wynikowy: {OUTPUT_FILE.relative_to(ROOT)}")
 
 
 def main() -> int:
     try:
-        build_blocklist()
+        build_blocklist(show_progress=True)
         return 0
 
     except BuildError as error:
