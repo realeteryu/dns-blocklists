@@ -10,7 +10,7 @@ sources:
   domains:
     - https://v.firebog.net/hosts/Easyprivacy.txt
     - https://raw.githubusercontent.com/badmojr/1Hosts/refs/heads/master/Lite/domains.wildcards
-    - https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/wildcard/multi-onlydomains.txt
+    # - https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/wildcard/multi-onlydomains.txt
     - https://raw.githubusercontent.com/FiltersHeroes/KADhosts/refs/heads/master/KADomains.txt
     - https://malware-filter.gitlab.io/malware-filter/phishing-filter-dnscrypt-blocked-names.txt
     - https://raw.githubusercontent.com/DandelionSprout/adfilt/refs/heads/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareDomains.txt
